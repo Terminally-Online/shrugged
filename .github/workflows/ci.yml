@@ -39,7 +39,7 @@ jobs:
       - name: Run tests
         env:
           DATABASE_URL: postgres://shrugged:shrugged@localhost:5432/shrugged?sslmode=disable
-        run: go test ./... -v
+        run: go test -p 1 ./... -v
 
   lint:
     runs-on: ubuntu-latest
