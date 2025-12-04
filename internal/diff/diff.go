@@ -134,12 +134,12 @@ func quoteIdent(s string) string {
 	needsQuoting := false
 	for i, r := range s {
 		if i == 0 {
-			if !((r >= 'a' && r <= 'z') || r == '_') {
+			if (r < 'a' || r > 'z') && r != '_' {
 				needsQuoting = true
 				break
 			}
 		} else {
-			if !((r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '_') {
+			if (r < 'a' || r > 'z') && (r < '0' || r > '9') && r != '_' {
 				needsQuoting = true
 				break
 			}

@@ -11,7 +11,7 @@ func TestGenerateSum(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	files := []struct {
 		name    string
@@ -50,7 +50,7 @@ func TestGenerateSum_EmptyDir(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	entries, err := GenerateSum(tmpDir)
 	if err != nil {
@@ -78,7 +78,7 @@ func TestWriteAndReadSum(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	entries := []SumEntry{
 		{Name: "001_first.sql", Hash: "abc123"},
@@ -122,7 +122,7 @@ func TestReadSum_NonExistent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	totalHash, entries, err := ReadSum(tmpDir)
 	if err != nil {
@@ -143,7 +143,7 @@ func TestValidateSum_Valid(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	files := []struct {
 		name    string
@@ -173,7 +173,7 @@ func TestValidateSum_ModifiedFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	if err := os.WriteFile(filepath.Join(tmpDir, "001_first.sql"), []byte("CREATE TABLE first (id INT);"), 0644); err != nil {
 		t.Fatalf("failed to write file: %v", err)
@@ -198,7 +198,7 @@ func TestValidateSum_NoSumFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	if err := os.WriteFile(filepath.Join(tmpDir, "001_first.sql"), []byte("CREATE TABLE first (id INT);"), 0644); err != nil {
 		t.Fatalf("failed to write file: %v", err)
@@ -214,7 +214,7 @@ func TestUpdateSum(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	if err := os.WriteFile(filepath.Join(tmpDir, "001_first.sql"), []byte("CREATE TABLE first (id INT);"), 0644); err != nil {
 		t.Fatalf("failed to write file: %v", err)
@@ -252,7 +252,7 @@ func TestGenerateSum_SortsFiles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	files := []string{"003_third.sql", "001_first.sql", "002_second.sql"}
 	for _, name := range files {

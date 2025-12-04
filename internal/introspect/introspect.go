@@ -15,7 +15,7 @@ func Database(ctx context.Context, databaseURL string) (*parser.Schema, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
-	defer conn.Close(ctx)
+	defer func() { _ = conn.Close(ctx) }()
 
 	schema := &parser.Schema{}
 

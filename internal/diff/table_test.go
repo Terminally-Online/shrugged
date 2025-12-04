@@ -892,7 +892,7 @@ func TestCompareColumn_Identity(t *testing.T) {
 		parser.Column{Name: "id", Type: "bigint", Identity: "ALWAYS"},
 	)
 	if addIdentity == nil {
-		t.Error("adding identity should be detected")
+		t.Fatal("adding identity should be detected")
 	}
 	found := false
 	for _, c := range addIdentity.Changes {
@@ -909,7 +909,7 @@ func TestCompareColumn_Identity(t *testing.T) {
 		parser.Column{Name: "id", Type: "bigint", Identity: "ALWAYS", IdentityStart: 1000, IdentityIncrement: 10},
 	)
 	if changeIdentityOpts == nil {
-		t.Error("changing identity options should be detected")
+		t.Fatal("changing identity options should be detected")
 	}
 	found = false
 	for _, c := range changeIdentityOpts.Changes {

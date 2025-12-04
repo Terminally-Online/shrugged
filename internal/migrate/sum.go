@@ -65,7 +65,7 @@ func WriteSum(migrationsDir string, entries []SumEntry) error {
 	if err != nil {
 		return fmt.Errorf("failed to create sum file: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	var allHashes []byte
 	for _, entry := range entries {
@@ -95,7 +95,7 @@ func ReadSum(migrationsDir string) (string, []SumEntry, error) {
 		}
 		return "", nil, fmt.Errorf("failed to open sum file: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	var totalHash string
 	var entries []SumEntry

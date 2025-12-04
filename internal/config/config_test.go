@@ -11,7 +11,7 @@ func TestLoad_ValidConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	configContent := `
 database_url: postgres://user:pass@localhost:5432/testdb
@@ -48,7 +48,7 @@ func TestLoad_Defaults(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	configContent := `
 database_url: postgres://localhost/testdb
@@ -79,7 +79,7 @@ func TestLoad_MissingDatabaseURL(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	configContent := `
 schema: schema.sql
@@ -107,7 +107,7 @@ func TestLoad_InvalidYAML(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	configContent := `
 database_url: [invalid yaml
@@ -128,10 +128,10 @@ func TestLoad_EnvVarExpansion(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
-	os.Setenv("TEST_DB_URL", "postgres://env:pass@localhost/envdb")
-	defer os.Unsetenv("TEST_DB_URL")
+	_ = os.Setenv("TEST_DB_URL", "postgres://env:pass@localhost/envdb")
+	defer func() { _ = os.Unsetenv("TEST_DB_URL") }()
 
 	configContent := `
 database_url: ${TEST_DB_URL}
@@ -156,10 +156,10 @@ func TestLoad_EnvVarExpansionDollarSign(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
-	os.Setenv("TEST_SCHEMA_PATH", "env_schema.sql")
-	defer os.Unsetenv("TEST_SCHEMA_PATH")
+	_ = os.Setenv("TEST_SCHEMA_PATH", "env_schema.sql")
+	defer func() { _ = os.Unsetenv("TEST_SCHEMA_PATH") }()
 
 	configContent := `
 database_url: postgres://localhost/testdb

@@ -163,7 +163,7 @@ func findFreePort() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer listener.Close()
+	defer func() { _ = listener.Close() }()
 
 	addr := listener.Addr().(*net.TCPAddr)
 	return fmt.Sprintf("%d", addr.Port), nil

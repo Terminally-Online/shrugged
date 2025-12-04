@@ -52,7 +52,7 @@ func GetApplied(ctx context.Context, databaseURL string) ([]Migration, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
-	defer conn.Close(ctx)
+	defer func() { _ = conn.Close(ctx) }()
 
 	if err := EnsureMigrationsTable(ctx, conn); err != nil {
 		return nil, err
@@ -185,7 +185,7 @@ func Apply(ctx context.Context, databaseURL string, m Migration) error {
 	if err != nil {
 		return fmt.Errorf("failed to connect to database: %w", err)
 	}
-	defer conn.Close(ctx)
+	defer func() { _ = conn.Close(ctx) }()
 
 	if err := EnsureMigrationsTable(ctx, conn); err != nil {
 		return fmt.Errorf("failed to ensure migrations table: %w", err)
@@ -268,7 +268,7 @@ func Rollback(ctx context.Context, databaseURL string, m Migration) error {
 	if err != nil {
 		return fmt.Errorf("failed to connect to database: %w", err)
 	}
-	defer conn.Close(ctx)
+	defer func() { _ = conn.Close(ctx) }()
 
 	tx, err := conn.Begin(ctx)
 	if err != nil {

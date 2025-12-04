@@ -88,7 +88,7 @@ then diffs against the desired schema to produce a new migration.`,
 		if err != nil {
 			return fmt.Errorf("failed to create migration file: %w", err)
 		}
-		defer upFile.Close()
+		defer func() { _ = upFile.Close() }()
 
 		for _, change := range changes {
 			if _, err := upFile.WriteString(change.SQL() + "\n\n"); err != nil {
@@ -100,7 +100,7 @@ then diffs against the desired schema to produce a new migration.`,
 		if err != nil {
 			return fmt.Errorf("failed to create down migration file: %w", err)
 		}
-		defer downFile.Close()
+		defer func() { _ = downFile.Close() }()
 
 		var hasIrreversible bool
 		for i := len(changes) - 1; i >= 0; i-- {

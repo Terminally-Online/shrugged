@@ -143,7 +143,7 @@ func TestGetPending_Integration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	migrations := []struct {
 		name    string
@@ -211,7 +211,7 @@ func TestGetPending_SkipsDownMigrations(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	files := []struct {
 		name    string
@@ -364,7 +364,7 @@ func TestGetRollbackable_Integration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	files := []struct {
 		name    string
@@ -448,7 +448,7 @@ func TestGetRollbackable_MissingDownMigration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	if err := os.WriteFile(filepath.Join(tmpDir, "001_test.sql"), []byte("CREATE TABLE test (id INT);"), 0644); err != nil {
 		t.Fatalf("failed to write file: %v", err)
@@ -490,7 +490,7 @@ func TestHasModifiedMigrations_Integration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	originalContent := "CREATE TABLE users (id INT);"
 	if err := os.WriteFile(filepath.Join(tmpDir, "001_users.sql"), []byte(originalContent), 0644); err != nil {
