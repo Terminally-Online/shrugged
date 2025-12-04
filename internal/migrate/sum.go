@@ -157,12 +157,6 @@ func ValidateSum(migrationsDir string) error {
 	for _, current := range currentEntries {
 		stored, exists := storedMap[current.Name]
 		if !exists {
-			if !strings.HasSuffix(current.Name, ".down.sql") {
-				upName := current.Name
-				if _, hasUp := storedMap[upName]; !hasUp {
-					continue
-				}
-			}
 			continue
 		}
 

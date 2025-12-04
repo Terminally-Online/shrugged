@@ -195,7 +195,7 @@ func Apply(ctx context.Context, databaseURL string, m Migration) error {
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	if _, err := tx.Exec(ctx, m.Content); err != nil {
 		return fmt.Errorf("failed to execute migration: %w", err)
@@ -274,7 +274,7 @@ func Rollback(ctx context.Context, databaseURL string, m Migration) error {
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	if _, err := tx.Exec(ctx, m.Content); err != nil {
 		return fmt.Errorf("failed to execute rollback: %w", err)

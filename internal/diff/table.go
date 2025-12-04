@@ -509,10 +509,6 @@ func generateAlterTable(c *TableChange) string {
 				if alt.Column.GeneratedAs == "" {
 					stmts = append(stmts, fmt.Sprintf("-- Cannot directly drop generated expression for %s; column must be dropped and recreated", colName))
 				} else {
-					genType := alt.Column.GeneratedType
-					if genType == "" {
-						genType = "STORED"
-					}
 					stmts = append(stmts, fmt.Sprintf("ALTER TABLE %s ALTER COLUMN %s SET EXPRESSION AS (%s);",
 						tableName, colName, alt.Column.GeneratedAs))
 				}

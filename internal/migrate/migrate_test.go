@@ -66,7 +66,7 @@ func TestEnsureMigrationsTable_Integration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("StartPostgres() error = %v", err)
 	}
-	defer docker.StopContainer(context.Background(), container.ID)
+	defer func() { _ = docker.StopContainer(context.Background(), container.ID) }()
 
 	applied, err := GetApplied(ctx, container.ConnectionString())
 	if err != nil {
@@ -91,7 +91,7 @@ func TestApplyAndGetApplied_Integration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("StartPostgres() error = %v", err)
 	}
-	defer docker.StopContainer(context.Background(), container.ID)
+	defer func() { _ = docker.StopContainer(context.Background(), container.ID) }()
 
 	dbURL := container.ConnectionString()
 
@@ -135,7 +135,7 @@ func TestGetPending_Integration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("StartPostgres() error = %v", err)
 	}
-	defer docker.StopContainer(context.Background(), container.ID)
+	defer func() { _ = docker.StopContainer(context.Background(), container.ID) }()
 
 	dbURL := container.ConnectionString()
 
@@ -203,7 +203,7 @@ func TestGetPending_SkipsDownMigrations(t *testing.T) {
 	if err != nil {
 		t.Fatalf("StartPostgres() error = %v", err)
 	}
-	defer docker.StopContainer(context.Background(), container.ID)
+	defer func() { _ = docker.StopContainer(context.Background(), container.ID) }()
 
 	dbURL := container.ConnectionString()
 
@@ -254,7 +254,7 @@ func TestGetLastApplied_Integration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("StartPostgres() error = %v", err)
 	}
-	defer docker.StopContainer(context.Background(), container.ID)
+	defer func() { _ = docker.StopContainer(context.Background(), container.ID) }()
 
 	dbURL := container.ConnectionString()
 
@@ -304,7 +304,7 @@ func TestRollback_Integration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("StartPostgres() error = %v", err)
 	}
-	defer docker.StopContainer(context.Background(), container.ID)
+	defer func() { _ = docker.StopContainer(context.Background(), container.ID) }()
 
 	dbURL := container.ConnectionString()
 
@@ -356,7 +356,7 @@ func TestGetRollbackable_Integration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("StartPostgres() error = %v", err)
 	}
-	defer docker.StopContainer(context.Background(), container.ID)
+	defer func() { _ = docker.StopContainer(context.Background(), container.ID) }()
 
 	dbURL := container.ConnectionString()
 
@@ -440,7 +440,7 @@ func TestGetRollbackable_MissingDownMigration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("StartPostgres() error = %v", err)
 	}
-	defer docker.StopContainer(context.Background(), container.ID)
+	defer func() { _ = docker.StopContainer(context.Background(), container.ID) }()
 
 	dbURL := container.ConnectionString()
 
@@ -482,7 +482,7 @@ func TestHasModifiedMigrations_Integration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("StartPostgres() error = %v", err)
 	}
-	defer docker.StopContainer(context.Background(), container.ID)
+	defer func() { _ = docker.StopContainer(context.Background(), container.ID) }()
 
 	dbURL := container.ConnectionString()
 
