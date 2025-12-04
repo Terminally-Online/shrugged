@@ -4,9 +4,13 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"net/url"
+	"os"
 	"os/exec"
 	"strings"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 )
 
 type Container struct {
@@ -16,6 +20,7 @@ type Container struct {
 	User     string
 	Password string
 	Database string
+	isCI     bool
 }
 
 func (c *Container) ConnectionString() string {
@@ -40,6 +45,10 @@ func DefaultPostgresConfig() PostgresConfig {
 }
 
 func StartPostgres(ctx context.Context, cfg PostgresConfig) (*Container, error) {
+	if dbURL := os.Getenv("DATABASE_URL"); dbURL != "" {
+		return startCIPostgres(ctx, dbURL)
+	}
+
 	port, err := findFreePort()
 	if err != nil {
 		return nil, fmt.Errorf("failed to find free port: %w", err)
@@ -85,7 +94,50 @@ func StartPostgres(ctx context.Context, cfg PostgresConfig) (*Container, error) 
 	return container, nil
 }
 
+func startCIPostgres(ctx context.Context, dbURL string) (*Container, error) {
+	parsed, err := url.Parse(dbURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse DATABASE_URL: %w", err)
+	}
+
+	password, _ := parsed.User.Password()
+	port := parsed.Port()
+	if port == "" {
+		port = "5432"
+	}
+
+	container := &Container{
+		ID:       "ci-postgres",
+		Host:     parsed.Hostname(),
+		Port:     port,
+		User:     parsed.User.Username(),
+		Password: password,
+		Database: strings.TrimPrefix(parsed.Path, "/"),
+		isCI:     true,
+	}
+
+	conn, err := pgx.Connect(ctx, dbURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to database: %w", err)
+	}
+	defer conn.Close(ctx)
+
+	_, err = conn.Exec(ctx, `
+		DROP SCHEMA public CASCADE;
+		CREATE SCHEMA public;
+		GRANT ALL ON SCHEMA public TO public;
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("failed to reset database: %w", err)
+	}
+
+	return container, nil
+}
+
 func StopContainer(ctx context.Context, containerID string) error {
+	if containerID == "ci-postgres" {
+		return nil
+	}
 	cmd := exec.CommandContext(ctx, "docker", "stop", containerID)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to stop container: %w", err)

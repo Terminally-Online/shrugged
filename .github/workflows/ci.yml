@@ -11,9 +11,19 @@ jobs:
     runs-on: ubuntu-latest
 
     services:
-      docker:
-        image: docker:dind
-        options: --privileged
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: shrugged
+          POSTGRES_PASSWORD: shrugged
+          POSTGRES_DB: shrugged
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
     steps:
       - uses: actions/checkout@v4
@@ -27,6 +37,8 @@ jobs:
         run: go build ./...
 
       - name: Run tests
+        env:
+          DATABASE_URL: postgres://shrugged:shrugged@localhost:5432/shrugged?sslmode=disable
         run: go test ./... -v
 
   lint:
