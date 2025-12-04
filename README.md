@@ -11,7 +11,7 @@
 ## Installation
 
 ```bash
-curl -sSL shrugged.terminallyonline.io/install.sh | sh
+curl -sSL shrugged.terminallyonline.io | sh
 ```
 
 Or with Go:
