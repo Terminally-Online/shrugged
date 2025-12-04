@@ -178,6 +178,20 @@ func ResetDatabase(ctx context.Context, container *Container) error {
 }
 
 func ExecuteSQL(ctx context.Context, container *Container, sql string) error {
+	if container.isCI {
+		conn, err := pgx.Connect(ctx, container.ConnectionString())
+		if err != nil {
+			return fmt.Errorf("failed to connect to database: %w", err)
+		}
+		defer conn.Close(ctx)
+
+		_, err = conn.Exec(ctx, sql)
+		if err != nil {
+			return fmt.Errorf("failed to execute SQL: %w", err)
+		}
+		return nil
+	}
+
 	cmd := exec.CommandContext(ctx, "docker", "exec", "-i", container.ID,
 		"psql", "-U", container.User, "-d", container.Database, "-v", "ON_ERROR_STOP=1")
 
@@ -192,13 +206,17 @@ func ExecuteSQL(ctx context.Context, container *Container, sql string) error {
 }
 
 func ExecuteSQLFile(ctx context.Context, container *Container, filepath string) error {
-	cmd := exec.CommandContext(ctx, "docker", "exec", "-i", container.ID,
-		"psql", "-U", container.User, "-d", container.Database, "-v", "ON_ERROR_STOP=1", "-f", "-")
-
-	file, err := exec.CommandContext(ctx, "cat", filepath).Output()
+	file, err := os.ReadFile(filepath)
 	if err != nil {
 		return fmt.Errorf("failed to read file: %w", err)
 	}
+
+	if container.isCI {
+		return ExecuteSQL(ctx, container, string(file))
+	}
+
+	cmd := exec.CommandContext(ctx, "docker", "exec", "-i", container.ID,
+		"psql", "-U", container.User, "-d", container.Database, "-v", "ON_ERROR_STOP=1", "-f", "-")
 
 	cmd.Stdin = strings.NewReader(string(file))
 
