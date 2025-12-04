@@ -11,16 +11,24 @@
 ## Installation
 
 ```bash
+curl -sSL shrugged.terminallyonline.io/install.sh | sh
+```
+
+Or with Go:
+
+```bash
 go install github.com/terminally-online/shrugged/cmd/shrugged@latest
 ```
 
-Or build from source:
+<details>
+<summary>Build from source</summary>
 
 ```bash
 git clone https://github.com/terminally-online/shrugged
 cd shrugged
 go build -o shrugged ./cmd/shrugged
 ```
+</details>
 
 **Requirements:**
 - Go 1.21+
