@@ -1,0 +1,33 @@
+FROM golang:1.21-alpine AS builder
+
+RUN apk add --no-cache git
+
+WORKDIR /app
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o /shrugged-api ./cmd/api
+
+FROM docker:24-dind
+
+RUN apk add --no-cache ca-certificates
+
+COPY --from=builder /shrugged-api /usr/local/bin/shrugged-api
+
+ENV PORT=8080
+ENV POOL_MIN_SIZE=2
+ENV POOL_MAX_SIZE=5
+ENV CACHE_TTL=30m
+ENV CACHE_MAX_SIZE=1000
+ENV RATE_LIMIT=30
+ENV RATE_WINDOW=1m
+ENV REQUEST_TIMEOUT=60s
+ENV POSTGRES_VERSION=16
+ENV ALLOWED_ORIGINS=*
+
+EXPOSE 8080
+
+ENTRYPOINT ["shrugged-api"]
