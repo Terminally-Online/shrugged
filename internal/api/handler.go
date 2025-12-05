@@ -74,7 +74,7 @@ func (h *Handler) handleHealth(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
+	_ = json.NewEncoder(w).Encode(resp)
 }
 
 func (h *Handler) handleDiff(w http.ResponseWriter, r *http.Request) {
@@ -100,7 +100,7 @@ func (h *Handler) handleDiff(w http.ResponseWriter, r *http.Request) {
 		cached.Cached = true
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("X-Cache", "HIT")
-		json.NewEncoder(w).Encode(cached)
+		_ = json.NewEncoder(w).Encode(cached)
 		return
 	}
 
@@ -121,7 +121,7 @@ func (h *Handler) handleDiff(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("X-Cache", "MISS")
-	json.NewEncoder(w).Encode(result)
+	_ = json.NewEncoder(w).Encode(result)
 }
 
 func (h *Handler) performDiff(ctx context.Context, previous, current string) (*DiffResult, error) {

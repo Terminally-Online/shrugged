@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -139,14 +138,4 @@ func getEnvDuration(key string, defaultValue time.Duration) time.Duration {
 
 func init() {
 	log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
-	fmt.Println(`
- _____ _                                  _    _    _____ _____
-/  ___| |                                | |  | |  |  _  |  _  |
-\ '--.| |__  _ __ _   _  __ _  __ _  ___ | |  | |  | | | | | | |
- '--. \ '_ \| '__| | | |/ _' |/ _' |/ _ \| |/\| |  | | | | | | |
-/\__/ / | | | |  | |_| | (_| | (_| |  __/\  /\  /  \ \_/ / |_| /
-\____/|_| |_|_|   \__,_|\__, |\__, |\___| \/  \/    \___/|___/
-                         __/ | __/ |
-                        |___/ |___/        Playground API
-`)
 }

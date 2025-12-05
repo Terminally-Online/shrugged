@@ -120,7 +120,7 @@ func startCIPostgres(ctx context.Context, dbURL string) (*Container, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
-	defer conn.Close(ctx)
+	defer func() { _ = conn.Close(ctx) }()
 
 	_, err = conn.Exec(ctx, `
 		DROP SCHEMA public CASCADE;
@@ -183,7 +183,7 @@ func ExecuteSQL(ctx context.Context, container *Container, sql string) error {
 		if err != nil {
 			return fmt.Errorf("failed to connect to database: %w", err)
 		}
-		defer conn.Close(ctx)
+		defer func() { _ = conn.Close(ctx) }()
 
 		_, err = conn.Exec(ctx, sql)
 		if err != nil {
