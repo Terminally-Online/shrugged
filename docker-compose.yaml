@@ -4,23 +4,23 @@ services:
       context: .
       dockerfile: Dockerfile.api
     ports:
-      - "8080:8080"
+      - "${PORT:-8080}:${PORT:-8080}"
     privileged: true
     environment:
-      - PORT=8080
-      - POOL_MIN_SIZE=2
-      - POOL_MAX_SIZE=5
-      - CACHE_TTL=30m
-      - CACHE_MAX_SIZE=1000
-      - RATE_LIMIT=30
-      - RATE_WINDOW=1m
-      - REQUEST_TIMEOUT=60s
-      - POSTGRES_VERSION=16
-      - ALLOWED_ORIGINS=*
+      - PORT=${PORT:-8080}
+      - POOL_MIN_SIZE=${POOL_MIN_SIZE:-2}
+      - POOL_MAX_SIZE=${POOL_MAX_SIZE:-5}
+      - CACHE_TTL=${CACHE_TTL:-30m}
+      - CACHE_MAX_SIZE=${CACHE_MAX_SIZE:-1000}
+      - RATE_LIMIT=${RATE_LIMIT:-30}
+      - RATE_WINDOW=${RATE_WINDOW:-1m}
+      - REQUEST_TIMEOUT=${REQUEST_TIMEOUT:-60s}
+      - POSTGRES_VERSION=${POSTGRES_VERSION:-16}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-*}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/health"]
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:${PORT:-8080}/health"]
       interval: 30s
       timeout: 10s
       retries: 3

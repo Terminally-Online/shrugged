@@ -17,7 +17,6 @@ RUN apk add --no-cache ca-certificates
 
 COPY --from=builder /shrugged-api /usr/local/bin/shrugged-api
 
-ENV PORT=8080
 ENV POOL_MIN_SIZE=2
 ENV POOL_MAX_SIZE=5
 ENV CACHE_TTL=30m
@@ -27,7 +26,5 @@ ENV RATE_WINDOW=1m
 ENV REQUEST_TIMEOUT=60s
 ENV POSTGRES_VERSION=16
 ENV ALLOWED_ORIGINS=*
-
-EXPOSE 8080
 
 ENTRYPOINT ["shrugged-api"]
