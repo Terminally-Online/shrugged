@@ -11,7 +11,7 @@ COPY . .
 
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o /shrugged-api ./cmd/api
 
-FROM docker:24-dind
+FROM alpine:3.19
 
 RUN apk add --no-cache ca-certificates
 
@@ -24,7 +24,6 @@ ENV CACHE_MAX_SIZE=1000
 ENV RATE_LIMIT=30
 ENV RATE_WINDOW=1m
 ENV REQUEST_TIMEOUT=60s
-ENV POSTGRES_VERSION=16
 ENV ALLOWED_ORIGINS=*
 
 ENTRYPOINT ["shrugged-api"]

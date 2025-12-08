@@ -13,6 +13,92 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
+type PoolDatabase struct {
+	Name          string
+	BaseURL       string
+	ConnectionURL string
+}
+
+func (d *PoolDatabase) ConnectionString() string {
+	return d.ConnectionURL
+}
+
+func CreatePoolDatabase(ctx context.Context, baseURL string, name string) (*PoolDatabase, error) {
+	conn, err := pgx.Connect(ctx, baseURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to database: %w", err)
+	}
+	defer func() { _ = conn.Close(ctx) }()
+
+	_, _ = conn.Exec(ctx, fmt.Sprintf("DROP DATABASE IF EXISTS %s", name))
+
+	_, err = conn.Exec(ctx, fmt.Sprintf("CREATE DATABASE %s", name))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create database %s: %w", name, err)
+	}
+
+	parsed, err := url.Parse(baseURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse base URL: %w", err)
+	}
+	parsed.Path = "/" + name
+
+	return &PoolDatabase{
+		Name:          name,
+		BaseURL:       baseURL,
+		ConnectionURL: parsed.String(),
+	}, nil
+}
+
+func DropPoolDatabase(ctx context.Context, baseURL string, name string) error {
+	conn, err := pgx.Connect(ctx, baseURL)
+	if err != nil {
+		return fmt.Errorf("failed to connect to database: %w", err)
+	}
+	defer func() { _ = conn.Close(ctx) }()
+
+	_, err = conn.Exec(ctx, fmt.Sprintf("DROP DATABASE IF EXISTS %s WITH (FORCE)", name))
+	if err != nil {
+		return fmt.Errorf("failed to drop database %s: %w", name, err)
+	}
+
+	return nil
+}
+
+func ResetPoolDatabase(ctx context.Context, db *PoolDatabase) error {
+	conn, err := pgx.Connect(ctx, db.ConnectionURL)
+	if err != nil {
+		return fmt.Errorf("failed to connect to database: %w", err)
+	}
+	defer func() { _ = conn.Close(ctx) }()
+
+	_, err = conn.Exec(ctx, `
+		DROP SCHEMA public CASCADE;
+		CREATE SCHEMA public;
+		GRANT ALL ON SCHEMA public TO public;
+	`)
+	if err != nil {
+		return fmt.Errorf("failed to reset database: %w", err)
+	}
+
+	return nil
+}
+
+func ExecutePoolSQL(ctx context.Context, db *PoolDatabase, sql string) error {
+	conn, err := pgx.Connect(ctx, db.ConnectionURL)
+	if err != nil {
+		return fmt.Errorf("failed to connect to database: %w", err)
+	}
+	defer func() { _ = conn.Close(ctx) }()
+
+	_, err = conn.Exec(ctx, sql)
+	if err != nil {
+		return fmt.Errorf("failed to execute SQL: %w", err)
+	}
+
+	return nil
+}
+
 type Container struct {
 	ID       string
 	Host     string

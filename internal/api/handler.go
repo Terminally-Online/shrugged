@@ -35,13 +35,13 @@ type HealthResponse struct {
 }
 
 type Handler struct {
-	pool    *ContainerPool
+	pool    *DatabasePool
 	cache   *DiffCache
 	limiter *RateLimiter
 	timeout time.Duration
 }
 
-func NewHandler(pool *ContainerPool, cache *DiffCache, limiter *RateLimiter, timeout time.Duration) *Handler {
+func NewHandler(pool *DatabasePool, cache *DiffCache, limiter *RateLimiter, timeout time.Duration) *Handler {
 	return &Handler{
 		pool:    pool,
 		cache:   cache,
@@ -125,36 +125,36 @@ func (h *Handler) handleDiff(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) performDiff(ctx context.Context, previous, current string) (*DiffResult, error) {
-	container, err := h.pool.Acquire(ctx)
+	db, err := h.pool.Acquire(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to acquire container: %w", err)
+		return nil, fmt.Errorf("failed to acquire database: %w", err)
 	}
-	defer h.pool.Release(container)
+	defer h.pool.Release(db)
 
 	var previousSchema, currentSchema *parser.Schema
 
 	if previous != "" {
-		if err := docker.ExecuteSQL(ctx, container, previous); err != nil {
+		if err := docker.ExecutePoolSQL(ctx, db, previous); err != nil {
 			return nil, fmt.Errorf("failed to apply previous schema: %w", err)
 		}
 
-		previousSchema, err = introspect.Database(ctx, container.ConnectionString())
+		previousSchema, err = introspect.Database(ctx, db.ConnectionString())
 		if err != nil {
 			return nil, fmt.Errorf("failed to introspect previous schema: %w", err)
 		}
 
-		if err := docker.ResetDatabase(ctx, container); err != nil {
+		if err := docker.ResetPoolDatabase(ctx, db); err != nil {
 			return nil, fmt.Errorf("failed to reset database: %w", err)
 		}
 	} else {
 		previousSchema = &parser.Schema{}
 	}
 
-	if err := docker.ExecuteSQL(ctx, container, current); err != nil {
+	if err := docker.ExecutePoolSQL(ctx, db, current); err != nil {
 		return nil, fmt.Errorf("failed to apply current schema: %w", err)
 	}
 
-	currentSchema, err = introspect.Database(ctx, container.ConnectionString())
+	currentSchema, err = introspect.Database(ctx, db.ConnectionString())
 	if err != nil {
 		return nil, fmt.Errorf("failed to introspect current schema: %w", err)
 	}

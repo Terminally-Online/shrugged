@@ -3,131 +3,103 @@ package api
 import (
 	"context"
 	"fmt"
+	"os"
 	"sync"
-	"time"
 
 	"shrugged/internal/docker"
 )
 
-type ContainerPool struct {
-	mu         sync.Mutex
-	containers []*docker.Container
-	config     docker.PostgresConfig
-	maxSize    int
-	minSize    int
-	warming    bool
+type DatabasePool struct {
+	mu        sync.Mutex
+	databases []*docker.PoolDatabase
+	baseURL   string
+	maxSize   int
+	minSize   int
+	counter   int
 }
 
-func NewContainerPool(cfg docker.PostgresConfig, minSize, maxSize int) *ContainerPool {
-	return &ContainerPool{
-		config:  cfg,
+func NewDatabasePool(minSize, maxSize int) *DatabasePool {
+	baseURL := os.Getenv("DATABASE_URL")
+	if baseURL == "" {
+		baseURL = "postgres://shrugged:shrugged@localhost:5432/shrugged?sslmode=disable"
+	}
+
+	return &DatabasePool{
+		baseURL: baseURL,
 		maxSize: maxSize,
 		minSize: minSize,
 	}
 }
 
-func (p *ContainerPool) Start(ctx context.Context) error {
-	p.mu.Lock()
-	p.warming = true
-	p.mu.Unlock()
-
+func (p *DatabasePool) Start(ctx context.Context) error {
 	for i := 0; i < p.minSize; i++ {
-		container, err := docker.StartPostgres(ctx, p.config)
+		db, err := p.createDatabase(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to warm pool: %w", err)
 		}
 
 		p.mu.Lock()
-		p.containers = append(p.containers, container)
+		p.databases = append(p.databases, db)
 		p.mu.Unlock()
 	}
-
-	p.mu.Lock()
-	p.warming = false
-	p.mu.Unlock()
-
-	go p.maintainPool(ctx)
 
 	return nil
 }
 
-func (p *ContainerPool) maintainPool(ctx context.Context) {
-	ticker := time.NewTicker(10 * time.Second)
-	defer ticker.Stop()
+func (p *DatabasePool) createDatabase(ctx context.Context) (*docker.PoolDatabase, error) {
+	p.mu.Lock()
+	name := fmt.Sprintf("diff_%d", p.counter)
+	p.counter++
+	p.mu.Unlock()
 
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			p.mu.Lock()
-			currentSize := len(p.containers)
-			needMore := currentSize < p.minSize
-			p.mu.Unlock()
-
-			if needMore {
-				container, err := docker.StartPostgres(ctx, p.config)
-				if err != nil {
-					continue
-				}
-
-				p.mu.Lock()
-				if len(p.containers) < p.maxSize {
-					p.containers = append(p.containers, container)
-				} else {
-					go func() { _ = docker.StopContainer(context.Background(), container.ID) }()
-				}
-				p.mu.Unlock()
-			}
-		}
-	}
+	return docker.CreatePoolDatabase(ctx, p.baseURL, name)
 }
 
-func (p *ContainerPool) Acquire(ctx context.Context) (*docker.Container, error) {
+func (p *DatabasePool) Acquire(ctx context.Context) (*docker.PoolDatabase, error) {
 	p.mu.Lock()
 
-	if len(p.containers) > 0 {
-		container := p.containers[0]
-		p.containers = p.containers[1:]
+	if len(p.databases) > 0 {
+		db := p.databases[0]
+		p.databases = p.databases[1:]
 		p.mu.Unlock()
 
-		if err := docker.ResetDatabase(ctx, container); err != nil {
-			_ = docker.StopContainer(context.Background(), container.ID)
+		if err := docker.ResetPoolDatabase(ctx, db); err != nil {
+			_ = docker.DropPoolDatabase(context.Background(), p.baseURL, db.Name)
 			return p.Acquire(ctx)
 		}
 
-		return container, nil
+		return db, nil
 	}
 
 	p.mu.Unlock()
 
-	return docker.StartPostgres(ctx, p.config)
+	return p.createDatabase(ctx)
 }
 
-func (p *ContainerPool) Release(container *docker.Container) {
+func (p *DatabasePool) Release(db *docker.PoolDatabase) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	if len(p.containers) < p.maxSize {
-		p.containers = append(p.containers, container)
+	if len(p.databases) < p.maxSize {
+		p.databases = append(p.databases, db)
 	} else {
-		go func() { _ = docker.StopContainer(context.Background(), container.ID) }()
+		go func() { _ = docker.DropPoolDatabase(context.Background(), p.baseURL, db.Name) }()
 	}
 }
 
-func (p *ContainerPool) Shutdown(ctx context.Context) {
+func (p *DatabasePool) Shutdown(ctx context.Context) {
 	p.mu.Lock()
-	containers := p.containers
-	p.containers = nil
+	databases := p.databases
+	p.databases = nil
 	p.mu.Unlock()
 
-	for _, c := range containers {
-		_ = docker.StopContainer(ctx, c.ID)
+	for _, db := range databases {
+		_ = docker.DropPoolDatabase(ctx, p.baseURL, db.Name)
 	}
 }
 
-func (p *ContainerPool) Size() int {
+func (p *DatabasePool) Size() int {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	return len(p.containers)
+	return len(p.databases)
 }

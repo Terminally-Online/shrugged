@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"shrugged/internal/api"
-	"shrugged/internal/docker"
 )
 
 func main() {
@@ -23,29 +22,21 @@ func main() {
 	rateLimit := getEnvInt("RATE_LIMIT", 30)
 	rateWindow := getEnvDuration("RATE_WINDOW", 1*time.Minute)
 	requestTimeout := getEnvDuration("REQUEST_TIMEOUT", 60*time.Second)
-	postgresVersion := getEnv("POSTGRES_VERSION", "16")
 	allowedOrigins := getEnv("ALLOWED_ORIGINS", "*")
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	dockerCfg := docker.PostgresConfig{
-		Version:  postgresVersion,
-		User:     "shrugged",
-		Password: "shrugged",
-		Database: "shrugged",
-	}
-
-	pool := api.NewContainerPool(dockerCfg, poolMinSize, poolMaxSize)
+	pool := api.NewDatabasePool(poolMinSize, poolMaxSize)
 	cache := api.NewDiffCache(cacheTTL, cacheMaxSize)
 	limiter := api.NewRateLimiter(rateLimit, rateWindow)
 	handler := api.NewHandler(pool, cache, limiter, requestTimeout)
 
-	log.Println("Warming container pool...")
+	log.Println("Warming database pool...")
 	if err := pool.Start(ctx); err != nil {
-		log.Fatalf("Failed to start container pool: %v", err)
+		log.Fatalf("Failed to start database pool: %v", err)
 	}
-	log.Printf("Pool warmed with %d containers", pool.Size())
+	log.Printf("Pool warmed with %d databases", pool.Size())
 
 	mux := http.NewServeMux()
 	mux.Handle("/", handler)
@@ -80,7 +71,7 @@ func main() {
 		log.Printf("Server shutdown error: %v", err)
 	}
 
-	log.Println("Cleaning up container pool...")
+	log.Println("Cleaning up database pool...")
 	pool.Shutdown(shutdownCtx)
 
 	log.Println("Server stopped")
