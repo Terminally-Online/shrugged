@@ -12,8 +12,12 @@ No cloud dependencies. No paywalled features. Just migrations.
 ### Options
 
 ```
-  -c, --config string   config file path (default "shrugged.yaml")
-  -h, --help            help for shrugged
+  -c, --config string             config file path (default "shrugged.yaml")
+  -h, --help                      help for shrugged
+      --migrations-dir string     path to migrations directory
+      --postgres-version string   postgres version for Docker containers
+      --schema string             path to schema file
+      --url string                database connection URL
 ```
 
 ### SEE ALSO

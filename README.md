@@ -37,16 +37,7 @@ go build -o shrugged ./cmd/shrugged
 
 ## Quick Start
 
-1. Create a `shrugged.yaml`:
-
-```yaml
-database_url: ${DATABASE_URL}
-schema: schema.sql
-migrations_dir: migrations
-postgres_version: "16"
-```
-
-2. Define your schema in `schema.sql`:
+1. Define your schema in `schema.sql`:
 
 ```sql
 CREATE TABLE users (
@@ -58,14 +49,19 @@ CREATE TABLE users (
 CREATE INDEX idx_users_email ON users (email);
 ```
 
-3. Generate a migration:
+2. Generate a migration:
 
 ```bash
-shrugged migrate
+shrugged migrate --schema schema.sql
 ```
 
-4. Apply it:
+3. Apply it:
 
 ```bash
-shrugged apply
+shrugged apply --url postgres://user:pass@localhost:5432/mydb
 ```
+
+## Documentation
+
+- [Configuration](docs/config.md)
+- [Commands](docs/shrugged.md)
