@@ -260,6 +260,34 @@ func TestRoleGrantChange_SQL(t *testing.T) {
 			want: []string{"GRANT", "SELECT", "ON", "users", "TO", "app_user"},
 		},
 		{
+			name: "create grant on type",
+			change: &RoleGrantChange{
+				ChangeType: CreateRoleGrant,
+				RoleGrant: parser.RoleGrant{
+					ObjectType: "TYPE",
+					Privilege:  "USAGE",
+					Schema:     "public",
+					ObjectName: "contract",
+					Grantee:    "PUBLIC",
+				},
+			},
+			want: []string{"GRANT USAGE ON TYPE", "contract", "TO PUBLIC;"},
+		},
+		{
+			name: "create grant on function",
+			change: &RoleGrantChange{
+				ChangeType: CreateRoleGrant,
+				RoleGrant: parser.RoleGrant{
+					ObjectType: "FUNCTION",
+					Privilege:  "EXECUTE",
+					Schema:     "public",
+					ObjectName: "my_func",
+					Grantee:    "app_user",
+				},
+			},
+			want: []string{"GRANT EXECUTE ON FUNCTION", "my_func", "TO"},
+		},
+		{
 			name: "create grant with grant option",
 			change: &RoleGrantChange{
 				ChangeType: CreateRoleGrant,
@@ -283,6 +311,20 @@ func TestRoleGrantChange_SQL(t *testing.T) {
 				},
 			},
 			want: []string{"REVOKE", "SELECT", "FROM", "app_user"},
+		},
+		{
+			name: "revoke grant on type",
+			change: &RoleGrantChange{
+				ChangeType: DropRoleGrant,
+				RoleGrant: parser.RoleGrant{
+					ObjectType: "TYPE",
+					Privilege:  "USAGE",
+					Schema:     "public",
+					ObjectName: "contract",
+					Grantee:    "PUBLIC",
+				},
+			},
+			want: []string{"REVOKE USAGE ON TYPE", "contract", "FROM"},
 		},
 	}
 

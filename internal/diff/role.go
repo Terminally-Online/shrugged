@@ -197,40 +197,65 @@ type RoleGrantChange struct {
 	RoleGrant  parser.RoleGrant
 }
 
+func quoteGrantee(grantee string) string {
+	if strings.ToUpper(grantee) == "PUBLIC" {
+		return "PUBLIC"
+	}
+	return quoteIdent(grantee)
+}
+
 func (c *RoleGrantChange) SQL() string {
 	objectRef := qualifiedName(c.RoleGrant.Schema, c.RoleGrant.ObjectName)
+	objectTypePrefix := ""
+	switch c.RoleGrant.ObjectType {
+	case "TYPE":
+		objectTypePrefix = "TYPE "
+	case "FUNCTION":
+		objectTypePrefix = "FUNCTION "
+	}
 	switch c.ChangeType {
 	case CreateRoleGrant:
-		sql := fmt.Sprintf("GRANT %s ON %s TO %s",
+		sql := fmt.Sprintf("GRANT %s ON %s%s TO %s",
 			c.RoleGrant.Privilege,
+			objectTypePrefix,
 			objectRef,
-			quoteIdent(c.RoleGrant.Grantee))
+			quoteGrantee(c.RoleGrant.Grantee))
 		if c.RoleGrant.WithGrant {
 			sql += " WITH GRANT OPTION"
 		}
 		return sql + ";"
 	case DropRoleGrant:
-		return fmt.Sprintf("REVOKE %s ON %s FROM %s;",
+		return fmt.Sprintf("REVOKE %s ON %s%s FROM %s;",
 			c.RoleGrant.Privilege,
+			objectTypePrefix,
 			objectRef,
-			quoteIdent(c.RoleGrant.Grantee))
+			quoteGrantee(c.RoleGrant.Grantee))
 	}
 	return ""
 }
 
 func (c *RoleGrantChange) DownSQL() string {
 	objectRef := qualifiedName(c.RoleGrant.Schema, c.RoleGrant.ObjectName)
+	objectTypePrefix := ""
+	switch c.RoleGrant.ObjectType {
+	case "TYPE":
+		objectTypePrefix = "TYPE "
+	case "FUNCTION":
+		objectTypePrefix = "FUNCTION "
+	}
 	switch c.ChangeType {
 	case CreateRoleGrant:
-		return fmt.Sprintf("REVOKE %s ON %s FROM %s;",
+		return fmt.Sprintf("REVOKE %s ON %s%s FROM %s;",
 			c.RoleGrant.Privilege,
+			objectTypePrefix,
 			objectRef,
-			quoteIdent(c.RoleGrant.Grantee))
+			quoteGrantee(c.RoleGrant.Grantee))
 	case DropRoleGrant:
-		sql := fmt.Sprintf("GRANT %s ON %s TO %s",
+		sql := fmt.Sprintf("GRANT %s ON %s%s TO %s",
 			c.RoleGrant.Privilege,
+			objectTypePrefix,
 			objectRef,
-			quoteIdent(c.RoleGrant.Grantee))
+			quoteGrantee(c.RoleGrant.Grantee))
 		if c.RoleGrant.WithGrant {
 			sql += " WITH GRANT OPTION"
 		}

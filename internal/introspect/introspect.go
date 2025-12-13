@@ -1546,6 +1546,7 @@ func loadRoles(ctx context.Context, conn *pgx.Conn, schema *parser.Schema) error
 func loadRoleGrants(ctx context.Context, conn *pgx.Conn, schema *parser.Schema) error {
 	rows, err := conn.Query(ctx, `
 		SELECT
+			'TABLE' AS object_type,
 			privilege_type,
 			table_schema,
 			table_name,
@@ -1558,6 +1559,7 @@ func loadRoleGrants(ctx context.Context, conn *pgx.Conn, schema *parser.Schema) 
 		UNION ALL
 
 		SELECT
+			'FUNCTION' AS object_type,
 			privilege_type,
 			routine_schema AS table_schema,
 			routine_name AS table_name,
@@ -1570,7 +1572,8 @@ func loadRoleGrants(ctx context.Context, conn *pgx.Conn, schema *parser.Schema) 
 		UNION ALL
 
 		SELECT
-			privilege_type,
+			'TYPE' AS object_type,
+			REPLACE(privilege_type, 'TYPE ', '') AS privilege_type,
 			udt_schema AS table_schema,
 			udt_name AS table_name,
 			grantee,
@@ -1587,12 +1590,13 @@ func loadRoleGrants(ctx context.Context, conn *pgx.Conn, schema *parser.Schema) 
 	defer rows.Close()
 
 	for rows.Next() {
-		var privilege, schemaName, objectName, grantee, isGrantable string
-		if err := rows.Scan(&privilege, &schemaName, &objectName, &grantee, &isGrantable); err != nil {
+		var objectType, privilege, schemaName, objectName, grantee, isGrantable string
+		if err := rows.Scan(&objectType, &privilege, &schemaName, &objectName, &grantee, &isGrantable); err != nil {
 			return fmt.Errorf("failed to scan role grant: %w", err)
 		}
 
 		schema.RoleGrants = append(schema.RoleGrants, parser.RoleGrant{
+			ObjectType: objectType,
 			Privilege:  privilege,
 			Schema:     schemaName,
 			ObjectName: objectName,
