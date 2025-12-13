@@ -6,9 +6,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"shrugged/internal/docker"
-	"shrugged/internal/introspect"
-	"shrugged/internal/parser"
+	"github.com/terminally-online/shrugged/internal/docker"
+	"github.com/terminally-online/shrugged/internal/introspect"
+	"github.com/terminally-online/shrugged/internal/parser"
 )
 
 var validateCmd = &cobra.Command{

@@ -5,7 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"shrugged/internal/migrate"
+	"github.com/terminally-online/shrugged/internal/migrate"
 )
 
 var (

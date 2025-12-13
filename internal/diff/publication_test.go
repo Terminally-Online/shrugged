@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"shrugged/internal/parser"
+	"github.com/terminally-online/shrugged/internal/parser"
 )
 
 func TestCompare_CreatePublication(t *testing.T) {

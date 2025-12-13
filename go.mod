@@ -1,4 +1,4 @@
-module shrugged
+module github.com/terminally-online/shrugged
 
 go 1.23.0
 

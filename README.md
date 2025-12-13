@@ -31,7 +31,7 @@ go build -o shrugged ./cmd/shrugged
 </details>
 
 **Requirements:**
-- Go 1.21+
+- Go 1.23+
 - Docker (for diffing and migration generation)
 - PostgreSQL 14+ (target database)
 

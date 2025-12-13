@@ -6,7 +6,7 @@ import (
 
 	"github.com/spf13/cobra/doc"
 
-	"shrugged/internal/cli"
+	"github.com/terminally-online/shrugged/internal/cli"
 )
 
 func main() {

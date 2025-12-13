@@ -10,7 +10,7 @@ import (
 	"syscall"
 	"time"
 
-	"shrugged/internal/api"
+	"github.com/terminally-online/shrugged/internal/api"
 )
 
 func main() {

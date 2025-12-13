@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"shrugged/internal/docker"
+	"github.com/terminally-online/shrugged/internal/docker"
 )
 
 func TestComputeChecksum(t *testing.T) {

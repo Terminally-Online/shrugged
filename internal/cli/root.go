@@ -6,7 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"shrugged/internal/config"
+	"github.com/terminally-online/shrugged/internal/config"
 )
 
 var (

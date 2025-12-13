@@ -9,11 +9,11 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"shrugged/internal/diff"
-	"shrugged/internal/docker"
-	"shrugged/internal/introspect"
-	"shrugged/internal/migrate"
-	"shrugged/internal/parser"
+	"github.com/terminally-online/shrugged/internal/diff"
+	"github.com/terminally-online/shrugged/internal/docker"
+	"github.com/terminally-online/shrugged/internal/introspect"
+	"github.com/terminally-online/shrugged/internal/migrate"
+	"github.com/terminally-online/shrugged/internal/parser"
 )
 
 var migrateCmd = &cobra.Command{
