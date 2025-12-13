@@ -20,14 +20,20 @@ var applyCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx := cmd.Context()
 
-		if err := migrate.ValidateSum(cfg.MigrationsDir); err != nil {
+		dbURL, err := cfg.GetDatabaseURL(&flags)
+		if err != nil {
+			return err
+		}
+		migrationsDir := cfg.GetMigrationsDir(&flags)
+
+		if err := migrate.ValidateSum(migrationsDir); err != nil {
 			if !forceApply {
 				return fmt.Errorf("sum file validation failed: %w\nUse --force to apply anyway", err)
 			}
 			fmt.Printf("⚠ WARNING: %v\n", err)
 		}
 
-		modified, err := migrate.HasModifiedMigrations(ctx, cfg.DatabaseURL, cfg.MigrationsDir)
+		modified, err := migrate.HasModifiedMigrations(ctx, dbURL, migrationsDir)
 		if err != nil {
 			return fmt.Errorf("failed to check for modified migrations: %w", err)
 		}
@@ -43,7 +49,7 @@ var applyCmd = &cobra.Command{
 			return fmt.Errorf("refusing to apply migrations with modified history")
 		}
 
-		pending, err := migrate.GetPending(ctx, cfg.DatabaseURL, cfg.MigrationsDir)
+		pending, err := migrate.GetPending(ctx, dbURL, migrationsDir)
 		if err != nil {
 			return fmt.Errorf("failed to get pending migrations: %w", err)
 		}
@@ -66,7 +72,7 @@ var applyCmd = &cobra.Command{
 		fmt.Println()
 		for _, m := range pending {
 			fmt.Printf("Applying %s... ", m.Name)
-			if err := migrate.Apply(ctx, cfg.DatabaseURL, m); err != nil {
+			if err := migrate.Apply(ctx, dbURL, m); err != nil {
 				fmt.Println("FAILED")
 				return fmt.Errorf("failed to apply migration %s: %w", m.Name, err)
 			}

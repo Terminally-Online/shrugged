@@ -26,8 +26,12 @@ then diffs against the desired schema to produce a new migration.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx := cmd.Context()
 
+		postgresVersion := cfg.GetPostgresVersion(&flags)
+		migrationsDir := cfg.GetMigrationsDir(&flags)
+		schemaFile := cfg.GetSchema(&flags)
+
 		dockerCfg := docker.PostgresConfig{
-			Version:  cfg.PostgresVersion,
+			Version:  postgresVersion,
 			User:     "shrugged",
 			Password: "shrugged",
 			Database: "shrugged",
@@ -43,12 +47,12 @@ then diffs against the desired schema to produce a new migration.`,
 			_ = docker.StopContainer(context.Background(), container.ID)
 		}()
 
-		currentSchema, err := buildCurrentState(ctx, container, cfg.MigrationsDir)
+		currentSchema, err := buildCurrentState(ctx, container, migrationsDir)
 		if err != nil {
 			return err
 		}
 
-		schemaSQL, err := parser.LoadFile(cfg.Schema)
+		schemaSQL, err := parser.LoadFile(schemaFile)
 		if err != nil {
 			return fmt.Errorf("failed to load schema file: %w", err)
 		}
@@ -76,13 +80,13 @@ then diffs against the desired schema to produce a new migration.`,
 			return nil
 		}
 
-		if err := os.MkdirAll(cfg.MigrationsDir, 0755); err != nil {
+		if err := os.MkdirAll(migrationsDir, 0755); err != nil {
 			return fmt.Errorf("failed to create migrations directory: %w", err)
 		}
 
 		timestamp := time.Now().UTC().Format("20060102150405")
-		upFilename := filepath.Join(cfg.MigrationsDir, fmt.Sprintf("%s.sql", timestamp))
-		downFilename := filepath.Join(cfg.MigrationsDir, fmt.Sprintf("%s.down.sql", timestamp))
+		upFilename := filepath.Join(migrationsDir, fmt.Sprintf("%s.sql", timestamp))
+		downFilename := filepath.Join(migrationsDir, fmt.Sprintf("%s.down.sql", timestamp))
 
 		upFile, err := os.Create(upFilename)
 		if err != nil {
@@ -114,7 +118,7 @@ then diffs against the desired schema to produce a new migration.`,
 			}
 		}
 
-		if err := migrate.UpdateSum(cfg.MigrationsDir); err != nil {
+		if err := migrate.UpdateSum(migrationsDir); err != nil {
 			return fmt.Errorf("failed to update sum file: %w", err)
 		}
 

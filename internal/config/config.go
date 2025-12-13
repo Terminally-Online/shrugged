@@ -15,6 +15,13 @@ type Config struct {
 	PostgresVersion string `yaml:"postgres_version"`
 }
 
+type Flags struct {
+	URL             string
+	Schema          string
+	MigrationsDir   string
+	PostgresVersion string
+}
+
 func Load(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -31,28 +38,47 @@ func Load(path string) (*Config, error) {
 	cfg.MigrationsDir = expandEnv(cfg.MigrationsDir)
 	cfg.PostgresVersion = expandEnv(cfg.PostgresVersion)
 
-	if cfg.Schema == "" {
-		cfg.Schema = "schema.sql"
-	}
-	if cfg.MigrationsDir == "" {
-		cfg.MigrationsDir = "migrations"
-	}
-	if cfg.PostgresVersion == "" {
-		cfg.PostgresVersion = "16"
-	}
-
-	if err := cfg.Validate(); err != nil {
-		return nil, err
-	}
-
 	return &cfg, nil
 }
 
-func (c *Config) Validate() error {
-	if c.DatabaseURL == "" {
-		return fmt.Errorf("database_url is required")
+func (c *Config) GetDatabaseURL(flags *Flags) (string, error) {
+	if flags != nil && flags.URL != "" {
+		return flags.URL, nil
 	}
-	return nil
+	if c.DatabaseURL != "" {
+		return c.DatabaseURL, nil
+	}
+	return "", fmt.Errorf("database_url is required (set in config or pass --url flag)")
+}
+
+func (c *Config) GetSchema(flags *Flags) string {
+	if flags != nil && flags.Schema != "" {
+		return flags.Schema
+	}
+	if c.Schema != "" {
+		return c.Schema
+	}
+	return "schema.sql"
+}
+
+func (c *Config) GetMigrationsDir(flags *Flags) string {
+	if flags != nil && flags.MigrationsDir != "" {
+		return flags.MigrationsDir
+	}
+	if c.MigrationsDir != "" {
+		return c.MigrationsDir
+	}
+	return "migrations"
+}
+
+func (c *Config) GetPostgresVersion(flags *Flags) string {
+	if flags != nil && flags.PostgresVersion != "" {
+		return flags.PostgresVersion
+	}
+	if c.PostgresVersion != "" {
+		return c.PostgresVersion
+	}
+	return "16"
 }
 
 func expandEnv(s string) string {

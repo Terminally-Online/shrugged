@@ -20,8 +20,13 @@ var inspectCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx := cmd.Context()
 
+		dbURL, err := cfg.GetDatabaseURL(&flags)
+		if err != nil {
+			return err
+		}
+
 		fmt.Println("Connecting to database...")
-		schema, err := introspect.Database(ctx, cfg.DatabaseURL)
+		schema, err := introspect.Database(ctx, dbURL)
 		if err != nil {
 			return fmt.Errorf("failed to introspect database: %w", err)
 		}

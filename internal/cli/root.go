@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/spf13/cobra"
 
@@ -11,6 +12,7 @@ import (
 var (
 	cfgFile string
 	cfg     *config.Config
+	flags   config.Flags
 	version = "dev"
 )
 
@@ -27,9 +29,13 @@ No cloud dependencies. No paywalled features. Just migrations.`,
 		}
 
 		var err error
-		cfg, err = config.Load(cfgFile)
-		if err != nil {
-			return fmt.Errorf("failed to load config: %w", err)
+		if _, statErr := os.Stat(cfgFile); os.IsNotExist(statErr) {
+			cfg = &config.Config{}
+		} else {
+			cfg, err = config.Load(cfgFile)
+			if err != nil {
+				return fmt.Errorf("failed to load config: %w", err)
+			}
 		}
 		return nil
 	},
@@ -45,6 +51,10 @@ var versionCmd = &cobra.Command{
 
 func init() {
 	rootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "shrugged.yaml", "config file path")
+	rootCmd.PersistentFlags().StringVar(&flags.URL, "url", "", "database connection URL")
+	rootCmd.PersistentFlags().StringVar(&flags.Schema, "schema", "", "path to schema file")
+	rootCmd.PersistentFlags().StringVar(&flags.MigrationsDir, "migrations-dir", "", "path to migrations directory")
+	rootCmd.PersistentFlags().StringVar(&flags.PostgresVersion, "postgres-version", "", "postgres version for Docker containers")
 
 	rootCmd.AddCommand(diffCmd)
 	rootCmd.AddCommand(migrateCmd)

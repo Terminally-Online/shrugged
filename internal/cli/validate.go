@@ -21,19 +21,22 @@ the configured Postgres version.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx := cmd.Context()
 
-		schemaSQL, err := parser.LoadFile(cfg.Schema)
+		postgresVersion := cfg.GetPostgresVersion(&flags)
+		schemaFile := cfg.GetSchema(&flags)
+
+		schemaSQL, err := parser.LoadFile(schemaFile)
 		if err != nil {
 			return fmt.Errorf("failed to load schema file: %w", err)
 		}
 
 		dockerCfg := docker.PostgresConfig{
-			Version:  cfg.PostgresVersion,
+			Version:  postgresVersion,
 			User:     "shrugged",
 			Password: "shrugged",
 			Database: "shrugged",
 		}
 
-		fmt.Printf("Starting Postgres %s container...\n", cfg.PostgresVersion)
+		fmt.Printf("Starting Postgres %s container...\n", postgresVersion)
 		container, err := docker.StartPostgres(ctx, dockerCfg)
 		if err != nil {
 			return fmt.Errorf("failed to start postgres: %w", err)

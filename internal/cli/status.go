@@ -13,12 +13,18 @@ var statusCmd = &cobra.Command{
 	Short: "Show migration status",
 	Long:  `Display the status of all migrations, showing which have been applied and which are pending.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		applied, err := migrate.GetAppliedWithStatus(cmd.Context(), cfg.DatabaseURL, cfg.MigrationsDir)
+		dbURL, err := cfg.GetDatabaseURL(&flags)
+		if err != nil {
+			return err
+		}
+		migrationsDir := cfg.GetMigrationsDir(&flags)
+
+		applied, err := migrate.GetAppliedWithStatus(cmd.Context(), dbURL, migrationsDir)
 		if err != nil {
 			return fmt.Errorf("failed to get applied migrations: %w", err)
 		}
 
-		pending, err := migrate.GetPending(cmd.Context(), cfg.DatabaseURL, cfg.MigrationsDir)
+		pending, err := migrate.GetPending(cmd.Context(), dbURL, migrationsDir)
 		if err != nil {
 			return fmt.Errorf("failed to get pending migrations: %w", err)
 		}

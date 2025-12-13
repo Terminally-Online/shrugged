@@ -20,7 +20,13 @@ var rollbackCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx := cmd.Context()
 
-		rollbackable, err := migrate.GetRollbackable(ctx, cfg.DatabaseURL, cfg.MigrationsDir, rollbackCount)
+		dbURL, err := cfg.GetDatabaseURL(&flags)
+		if err != nil {
+			return err
+		}
+		migrationsDir := cfg.GetMigrationsDir(&flags)
+
+		rollbackable, err := migrate.GetRollbackable(ctx, dbURL, migrationsDir, rollbackCount)
 		if err != nil {
 			return fmt.Errorf("failed to get rollbackable migrations: %w", err)
 		}
@@ -47,7 +53,7 @@ var rollbackCmd = &cobra.Command{
 		fmt.Println()
 		for _, m := range rollbackable {
 			fmt.Printf("Rolling back %s... ", m.Name)
-			if err := migrate.Rollback(ctx, cfg.DatabaseURL, m); err != nil {
+			if err := migrate.Rollback(ctx, dbURL, m); err != nil {
 				fmt.Println("FAILED")
 				return fmt.Errorf("failed to rollback migration %s: %w", m.Name, err)
 			}

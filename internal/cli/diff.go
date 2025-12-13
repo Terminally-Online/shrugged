@@ -24,8 +24,12 @@ This spins up a temporary Postgres container, applies all migrations to get the
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx := cmd.Context()
 
+		postgresVersion := cfg.GetPostgresVersion(&flags)
+		migrationsDir := cfg.GetMigrationsDir(&flags)
+		schemaFile := cfg.GetSchema(&flags)
+
 		dockerCfg := docker.PostgresConfig{
-			Version:  cfg.PostgresVersion,
+			Version:  postgresVersion,
 			User:     "shrugged",
 			Password: "shrugged",
 			Database: "shrugged",
@@ -41,12 +45,12 @@ This spins up a temporary Postgres container, applies all migrations to get the
 			_ = docker.StopContainer(context.Background(), container.ID)
 		}()
 
-		currentSchema, err := buildCurrentState(ctx, container, cfg.MigrationsDir)
+		currentSchema, err := buildCurrentState(ctx, container, migrationsDir)
 		if err != nil {
 			return err
 		}
 
-		schemaSQL, err := parser.LoadFile(cfg.Schema)
+		schemaSQL, err := parser.LoadFile(schemaFile)
 		if err != nil {
 			return fmt.Errorf("failed to load schema file: %w", err)
 		}

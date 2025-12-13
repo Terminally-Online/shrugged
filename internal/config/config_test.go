@@ -43,55 +43,69 @@ postgres_version: "15"
 	}
 }
 
-func TestLoad_Defaults(t *testing.T) {
-	tmpDir, err := os.MkdirTemp("", "config_test")
-	if err != nil {
-		t.Fatalf("failed to create temp dir: %v", err)
-	}
-	defer func() { _ = os.RemoveAll(tmpDir) }()
+func TestGetters_Defaults(t *testing.T) {
+	cfg := &Config{}
 
-	configContent := `
-database_url: postgres://localhost/testdb
-`
-	configPath := filepath.Join(tmpDir, "shrugged.yaml")
-	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
-		t.Fatalf("failed to write config: %v", err)
+	if schema := cfg.GetSchema(nil); schema != "schema.sql" {
+		t.Errorf("GetSchema default = %q, want %q", schema, "schema.sql")
 	}
-
-	cfg, err := Load(configPath)
-	if err != nil {
-		t.Fatalf("Load() error = %v", err)
+	if migrationsDir := cfg.GetMigrationsDir(nil); migrationsDir != "migrations" {
+		t.Errorf("GetMigrationsDir default = %q, want %q", migrationsDir, "migrations")
 	}
-
-	if cfg.Schema != "schema.sql" {
-		t.Errorf("Schema default = %q, want %q", cfg.Schema, "schema.sql")
-	}
-	if cfg.MigrationsDir != "migrations" {
-		t.Errorf("MigrationsDir default = %q, want %q", cfg.MigrationsDir, "migrations")
-	}
-	if cfg.PostgresVersion != "16" {
-		t.Errorf("PostgresVersion default = %q, want %q", cfg.PostgresVersion, "16")
+	if pgVersion := cfg.GetPostgresVersion(nil); pgVersion != "16" {
+		t.Errorf("GetPostgresVersion default = %q, want %q", pgVersion, "16")
 	}
 }
 
-func TestLoad_MissingDatabaseURL(t *testing.T) {
-	tmpDir, err := os.MkdirTemp("", "config_test")
+func TestGetters_FlagOverrides(t *testing.T) {
+	cfg := &Config{
+		DatabaseURL:     "postgres://config/db",
+		Schema:          "config_schema.sql",
+		MigrationsDir:   "config_migrations",
+		PostgresVersion: "14",
+	}
+
+	flags := &Flags{
+		URL:             "postgres://flag/db",
+		Schema:          "flag_schema.sql",
+		MigrationsDir:   "flag_migrations",
+		PostgresVersion: "15",
+	}
+
+	dbURL, err := cfg.GetDatabaseURL(flags)
 	if err != nil {
-		t.Fatalf("failed to create temp dir: %v", err)
+		t.Fatalf("GetDatabaseURL() error = %v", err)
 	}
-	defer func() { _ = os.RemoveAll(tmpDir) }()
-
-	configContent := `
-schema: schema.sql
-`
-	configPath := filepath.Join(tmpDir, "shrugged.yaml")
-	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
-		t.Fatalf("failed to write config: %v", err)
+	if dbURL != "postgres://flag/db" {
+		t.Errorf("GetDatabaseURL = %q, want %q", dbURL, "postgres://flag/db")
 	}
+	if schema := cfg.GetSchema(flags); schema != "flag_schema.sql" {
+		t.Errorf("GetSchema = %q, want %q", schema, "flag_schema.sql")
+	}
+	if migrationsDir := cfg.GetMigrationsDir(flags); migrationsDir != "flag_migrations" {
+		t.Errorf("GetMigrationsDir = %q, want %q", migrationsDir, "flag_migrations")
+	}
+	if pgVersion := cfg.GetPostgresVersion(flags); pgVersion != "15" {
+		t.Errorf("GetPostgresVersion = %q, want %q", pgVersion, "15")
+	}
+}
 
-	_, err = Load(configPath)
+func TestGetDatabaseURL_MissingURL(t *testing.T) {
+	cfg := &Config{}
+	_, err := cfg.GetDatabaseURL(nil)
 	if err == nil {
 		t.Error("expected error for missing database_url")
+	}
+}
+
+func TestGetDatabaseURL_FromConfig(t *testing.T) {
+	cfg := &Config{DatabaseURL: "postgres://config/db"}
+	dbURL, err := cfg.GetDatabaseURL(nil)
+	if err != nil {
+		t.Fatalf("GetDatabaseURL() error = %v", err)
+	}
+	if dbURL != "postgres://config/db" {
+		t.Errorf("GetDatabaseURL = %q, want %q", dbURL, "postgres://config/db")
 	}
 }
 
@@ -180,30 +194,3 @@ schema: $TEST_SCHEMA_PATH
 	}
 }
 
-func TestValidate(t *testing.T) {
-	tests := []struct {
-		name    string
-		cfg     Config
-		wantErr bool
-	}{
-		{
-			name:    "valid config",
-			cfg:     Config{DatabaseURL: "postgres://localhost/db"},
-			wantErr: false,
-		},
-		{
-			name:    "missing database_url",
-			cfg:     Config{DatabaseURL: ""},
-			wantErr: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := tt.cfg.Validate()
-			if (err != nil) != tt.wantErr {
-				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
-			}
-		})
-	}
-}
