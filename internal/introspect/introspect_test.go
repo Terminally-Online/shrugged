@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"shrugged/internal/docker"
-	"shrugged/internal/parser"
+	"github.com/terminally-online/shrugged/internal/docker"
+	"github.com/terminally-online/shrugged/internal/parser"
 )
 
 func TestDatabase_Integration(t *testing.T) {

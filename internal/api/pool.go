@@ -6,7 +6,7 @@ import (
 	"os"
 	"sync"
 
-	"shrugged/internal/docker"
+	"github.com/terminally-online/shrugged/internal/docker"
 )
 
 type DatabasePool struct {

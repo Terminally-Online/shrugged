@@ -3,7 +3,7 @@ package diff
 import (
 	"strings"
 
-	"shrugged/internal/parser"
+	"github.com/terminally-online/shrugged/internal/parser"
 )
 
 type ChangeType int

@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"shrugged/internal/cli"
+	"github.com/terminally-online/shrugged/internal/cli"
 )
 
 var version = "dev"

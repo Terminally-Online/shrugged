@@ -3,7 +3,7 @@ package diff
 import (
 	"testing"
 
-	"shrugged/internal/parser"
+	"github.com/terminally-online/shrugged/internal/parser"
 )
 
 func TestCompare_NoChanges(t *testing.T) {
