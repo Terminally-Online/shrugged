@@ -245,10 +245,26 @@ func waitForPostgres(ctx context.Context, container *Container) error {
 			"pg_isready", "-U", container.User, "-d", container.Database)
 
 		if err := cmd.Run(); err == nil {
-			return nil
+			break
 		}
 
 		time.Sleep(500 * time.Millisecond)
+	}
+
+	for time.Now().Before(deadline) {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
+		conn, err := pgx.Connect(ctx, container.ConnectionString())
+		if err == nil {
+			_ = conn.Close(ctx)
+			return nil
+		}
+
+		time.Sleep(100 * time.Millisecond)
 	}
 
 	return fmt.Errorf("timeout waiting for postgres to be ready")

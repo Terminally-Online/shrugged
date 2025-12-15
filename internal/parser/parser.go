@@ -656,6 +656,9 @@ func sortTablesByDependency(tables []Table) []Table {
 				if !strings.Contains(refKey, ".") && t.Schema != "" && t.Schema != "public" {
 					refKey = t.Schema + "." + c.RefTable
 				}
+				if refKey == key {
+					continue
+				}
 				if _, inSet := tableMap[refKey]; inSet {
 					deps[key] = append(deps[key], refKey)
 				}

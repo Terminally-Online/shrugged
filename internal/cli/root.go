@@ -63,6 +63,7 @@ func init() {
 	rootCmd.AddCommand(inspectCmd)
 	rootCmd.AddCommand(validateCmd)
 	rootCmd.AddCommand(statusCmd)
+	rootCmd.AddCommand(generateCmd)
 	rootCmd.AddCommand(versionCmd)
 }
 

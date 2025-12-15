@@ -13,6 +13,8 @@ type Config struct {
 	DatabaseURL     string `yaml:"database_url"`
 	MigrationsDir   string `yaml:"migrations_dir"`
 	PostgresVersion string `yaml:"postgres_version"`
+	Out             string `yaml:"out"`
+	Language        string `yaml:"language"`
 }
 
 type Flags struct {
@@ -20,6 +22,8 @@ type Flags struct {
 	Schema          string
 	MigrationsDir   string
 	PostgresVersion string
+	Out             string
+	Language        string
 }
 
 func Load(path string) (*Config, error) {
@@ -37,6 +41,8 @@ func Load(path string) (*Config, error) {
 	cfg.Schema = expandEnv(cfg.Schema)
 	cfg.MigrationsDir = expandEnv(cfg.MigrationsDir)
 	cfg.PostgresVersion = expandEnv(cfg.PostgresVersion)
+	cfg.Out = expandEnv(cfg.Out)
+	cfg.Language = expandEnv(cfg.Language)
 
 	return &cfg, nil
 }
@@ -79,6 +85,26 @@ func (c *Config) GetPostgresVersion(flags *Flags) string {
 		return c.PostgresVersion
 	}
 	return "16"
+}
+
+func (c *Config) GetOut(flags *Flags) string {
+	if flags != nil && flags.Out != "" {
+		return flags.Out
+	}
+	if c.Out != "" {
+		return c.Out
+	}
+	return "models"
+}
+
+func (c *Config) GetLanguage(flags *Flags) string {
+	if flags != nil && flags.Language != "" {
+		return flags.Language
+	}
+	if c.Language != "" {
+		return c.Language
+	}
+	return "go"
 }
 
 func expandEnv(s string) string {

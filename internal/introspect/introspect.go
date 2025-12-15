@@ -554,6 +554,12 @@ func loadEnums(ctx context.Context, conn *pgx.Conn, schema *parser.Schema) error
 
 func resolveType(dataType string, udtName *string) string {
 	if udtName != nil && *udtName != "" {
+		if dataType == "ARRAY" && strings.HasPrefix(*udtName, "_") {
+			elementType := strings.TrimPrefix(*udtName, "_")
+			resolved := resolveType(elementType, &elementType)
+			return resolved + "[]"
+		}
+
 		switch *udtName {
 		case "int4":
 			return "integer"
