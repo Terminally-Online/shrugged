@@ -10,6 +10,7 @@ main() {
     get_latest_version
     download_binary
     install_binary
+    install_completions
     verify_install
 }
 
@@ -128,6 +129,71 @@ install_binary() {
 
     rm -rf "$TEMP_DIR"
     echo "Installed to ${INSTALL_DIR}/${BINARY_NAME}"
+}
+
+install_completions() {
+    if [ "$SHRUGGED_SKIP_COMPLETIONS" = "1" ]; then
+        return
+    fi
+
+    SHRUGGED_BIN="${INSTALL_DIR}/${BINARY_NAME}"
+
+    if [ ! -x "$SHRUGGED_BIN" ]; then
+        echo "Warning: Could not find shrugged binary, skipping completions"
+        return
+    fi
+
+    echo "Installing shell completions..."
+
+    # Zsh completions
+    ZSH_COMP_DIR=""
+    if [ -d "/usr/local/share/zsh/site-functions" ]; then
+        ZSH_COMP_DIR="/usr/local/share/zsh/site-functions"
+    elif [ -d "/usr/share/zsh/site-functions" ]; then
+        ZSH_COMP_DIR="/usr/share/zsh/site-functions"
+    elif [ -d "${HOME}/.zsh/completions" ]; then
+        ZSH_COMP_DIR="${HOME}/.zsh/completions"
+    fi
+
+    if [ -n "$ZSH_COMP_DIR" ]; then
+        if [ -w "$ZSH_COMP_DIR" ]; then
+            "$SHRUGGED_BIN" completion zsh > "${ZSH_COMP_DIR}/_shrugged" 2>/dev/null && \
+                echo "  Installed zsh completions to ${ZSH_COMP_DIR}/_shrugged"
+        else
+            "$SHRUGGED_BIN" completion zsh 2>/dev/null | sudo tee "${ZSH_COMP_DIR}/_shrugged" >/dev/null && \
+                echo "  Installed zsh completions to ${ZSH_COMP_DIR}/_shrugged"
+        fi
+    fi
+
+    # Bash completions
+    BASH_COMP_DIR=""
+    if [ -d "/etc/bash_completion.d" ]; then
+        BASH_COMP_DIR="/etc/bash_completion.d"
+    elif [ -d "/usr/local/etc/bash_completion.d" ]; then
+        BASH_COMP_DIR="/usr/local/etc/bash_completion.d"
+    elif [ -d "/usr/share/bash-completion/completions" ]; then
+        BASH_COMP_DIR="/usr/share/bash-completion/completions"
+    fi
+
+    if [ -n "$BASH_COMP_DIR" ]; then
+        if [ -w "$BASH_COMP_DIR" ]; then
+            "$SHRUGGED_BIN" completion bash > "${BASH_COMP_DIR}/shrugged" 2>/dev/null && \
+                echo "  Installed bash completions to ${BASH_COMP_DIR}/shrugged"
+        else
+            "$SHRUGGED_BIN" completion bash 2>/dev/null | sudo tee "${BASH_COMP_DIR}/shrugged" >/dev/null && \
+                echo "  Installed bash completions to ${BASH_COMP_DIR}/shrugged"
+        fi
+    fi
+
+    # Fish completions (user directory, no sudo needed)
+    if [ -d "${HOME}/.config/fish/completions" ]; then
+        "$SHRUGGED_BIN" completion fish > "${HOME}/.config/fish/completions/shrugged.fish" 2>/dev/null && \
+            echo "  Installed fish completions to ~/.config/fish/completions/shrugged.fish"
+    elif [ -d "${HOME}/.config/fish" ]; then
+        mkdir -p "${HOME}/.config/fish/completions"
+        "$SHRUGGED_BIN" completion fish > "${HOME}/.config/fish/completions/shrugged.fish" 2>/dev/null && \
+            echo "  Installed fish completions to ~/.config/fish/completions/shrugged.fish"
+    fi
 }
 
 verify_install() {

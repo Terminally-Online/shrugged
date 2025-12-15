@@ -193,4 +193,3 @@ schema: $TEST_SCHEMA_PATH
 		t.Errorf("Schema = %q, want %q", cfg.Schema, "env_schema.sql")
 	}
 }
-

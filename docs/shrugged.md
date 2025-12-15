@@ -24,6 +24,7 @@ No cloud dependencies. No paywalled features. Just migrations.
 
 * [shrugged apply](shrugged_apply.md)	 - Apply pending migrations to the database
 * [shrugged diff](shrugged_diff.md)	 - Show differences between schema file and migrations
+* [shrugged generate](shrugged_generate.md)	 - Generate language bindings from database schema
 * [shrugged inspect](shrugged_inspect.md)	 - Dump the current database schema
 * [shrugged migrate](shrugged_migrate.md)	 - Generate a migration from schema differences
 * [shrugged rollback](shrugged_rollback.md)	 - Rollback the last applied migration(s)

@@ -2,12 +2,16 @@ package cli
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 
 	"github.com/terminally-online/shrugged/internal/codegen"
-	_ "github.com/terminally-online/shrugged/internal/codegen/golang"
+	"github.com/terminally-online/shrugged/internal/codegen/golang"
 	"github.com/terminally-online/shrugged/internal/introspect"
+	"github.com/terminally-online/shrugged/internal/parser"
 )
 
 var generateCmd = &cobra.Command{
@@ -53,6 +57,36 @@ Example:
 
 		fmt.Printf("Generated %d tables, %d enums, %d composite types\n", tableCount, enumCount, compositeCount)
 
+		queriesPath := cfg.GetQueries(&flags)
+		if queriesPath != "" {
+			queriesOutDir := cfg.GetQueriesOut(&flags)
+
+			fmt.Printf("Parsing queries from %s...\n", queriesPath)
+			queryFiles, err := parser.ParseQueries(queriesPath)
+			if err != nil {
+				return fmt.Errorf("failed to parse queries: %w", err)
+			}
+
+			queries := parser.GetAllQueries(queryFiles)
+			if len(queries) == 0 {
+				fmt.Printf("No queries found\n")
+			} else {
+				fmt.Printf("Found %d queries, introspecting types...\n", len(queries))
+				queries, err = introspect.Queries(ctx, dbURL, queries, schema)
+				if err != nil {
+					return fmt.Errorf("failed to introspect queries: %w", err)
+				}
+
+				modelsPackage := determineModelsPackage(outDir)
+				fmt.Printf("Generating query bindings to %s...\n", queriesOutDir)
+				if err := golang.GenerateQueries(queries, queriesOutDir, modelsPackage, schema); err != nil {
+					return fmt.Errorf("failed to generate queries: %w", err)
+				}
+
+				fmt.Printf("Generated %d query functions\n", len(queries))
+			}
+		}
+
 		return nil
 	},
 }
@@ -60,4 +94,52 @@ Example:
 func init() {
 	generateCmd.Flags().StringVar(&flags.Out, "out", "", "output directory for generated files")
 	generateCmd.Flags().StringVar(&flags.Language, "language", "", "target language (default: go)")
+	generateCmd.Flags().StringVar(&flags.Queries, "queries", "", "path to queries file or directory")
+	generateCmd.Flags().StringVar(&flags.QueriesOut, "queries-out", "", "output directory for query bindings")
+}
+
+func determineModelsPackage(outDir string) string {
+	absOut, err := filepath.Abs(outDir)
+	if err != nil {
+		return filepath.Base(outDir)
+	}
+
+	modPath, modDir := findModulePathFromDir(absOut)
+	if modPath == "" {
+		return filepath.Base(outDir)
+	}
+
+	relPath, err := filepath.Rel(modDir, absOut)
+	if err != nil {
+		return filepath.Base(outDir)
+	}
+
+	if relPath == "." {
+		return modPath
+	}
+
+	return modPath + "/" + filepath.ToSlash(relPath)
+}
+
+func findModulePathFromDir(startDir string) (modPath string, modDir string) {
+	dir := startDir
+	for {
+		goModPath := filepath.Join(dir, "go.mod")
+		data, err := os.ReadFile(goModPath)
+		if err == nil {
+			lines := strings.Split(string(data), "\n")
+			for _, line := range lines {
+				line = strings.TrimSpace(line)
+				if strings.HasPrefix(line, "module ") {
+					return strings.TrimSpace(strings.TrimPrefix(line, "module ")), dir
+				}
+			}
+		}
+
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return "", ""
+		}
+		dir = parent
+	}
 }

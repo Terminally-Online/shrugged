@@ -15,6 +15,8 @@ type Config struct {
 	PostgresVersion string `yaml:"postgres_version"`
 	Out             string `yaml:"out"`
 	Language        string `yaml:"language"`
+	Queries         string `yaml:"queries"`
+	QueriesOut      string `yaml:"queries_out"`
 }
 
 type Flags struct {
@@ -24,6 +26,8 @@ type Flags struct {
 	PostgresVersion string
 	Out             string
 	Language        string
+	Queries         string
+	QueriesOut      string
 }
 
 func Load(path string) (*Config, error) {
@@ -43,6 +47,8 @@ func Load(path string) (*Config, error) {
 	cfg.PostgresVersion = expandEnv(cfg.PostgresVersion)
 	cfg.Out = expandEnv(cfg.Out)
 	cfg.Language = expandEnv(cfg.Language)
+	cfg.Queries = expandEnv(cfg.Queries)
+	cfg.QueriesOut = expandEnv(cfg.QueriesOut)
 
 	return &cfg, nil
 }
@@ -105,6 +111,26 @@ func (c *Config) GetLanguage(flags *Flags) string {
 		return c.Language
 	}
 	return "go"
+}
+
+func (c *Config) GetQueries(flags *Flags) string {
+	if flags != nil && flags.Queries != "" {
+		return flags.Queries
+	}
+	if c.Queries != "" {
+		return c.Queries
+	}
+	return ""
+}
+
+func (c *Config) GetQueriesOut(flags *Flags) string {
+	if flags != nil && flags.QueriesOut != "" {
+		return flags.QueriesOut
+	}
+	if c.QueriesOut != "" {
+		return c.QueriesOut
+	}
+	return "queries"
 }
 
 func expandEnv(s string) string {

@@ -9,8 +9,8 @@ import (
 )
 
 var (
-	dryRun      bool
-	forceApply  bool
+	dryRun     bool
+	forceApply bool
 )
 
 var applyCmd = &cobra.Command{

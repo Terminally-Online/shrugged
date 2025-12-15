@@ -1,6 +1,6 @@
 package models
 
 type MoneyAmount struct {
-	Amount string
+	Amount   string
 	Currency string
 }

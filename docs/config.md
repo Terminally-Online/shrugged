@@ -63,3 +63,63 @@ shrugged apply --url postgres://localhost/staging
 | `status` | Yes | No |
 | `rollback` | Yes | No |
 | `inspect` | Yes | No |
+| `generate` | Yes | No |
+
+### Generate Command
+
+The `generate` command creates Go models and query bindings from your database schema.
+
+#### Generate Flags
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--out` | Output directory for generated models | `models` |
+| `--language` | Target language (currently `go`) | `go` |
+| `--queries` | Path to SQL file with query definitions | - |
+| `--queries-out` | Output directory for query bindings | `queries` |
+
+#### Examples
+
+Generate models only:
+```bash
+shrugged generate --url postgres://localhost/mydb --out ./db/models
+```
+
+Generate models and query bindings:
+```bash
+shrugged generate \
+  --url postgres://localhost/mydb \
+  --out ./db/models \
+  --queries ./db/queries.sql \
+  --queries-out ./db/queries
+```
+
+#### Query File Format
+
+Queries are defined with annotations:
+
+```sql
+-- name: QueryName :resulttype
+-- Optional: nest: StructName(prefix.*)
+
+SELECT ...
+```
+
+Result types:
+- `:row` - Returns single row (`*ResultRow, error`)
+- `:rows` - Returns multiple rows (`[]ResultRow, error`)
+- `:exec` - No result, just execute (`error`)
+- `:execrows` - Returns affected row count (`int64, error`)
+
+Named parameters use `@param` syntax:
+```sql
+-- name: GetUserByEmail :row
+SELECT * FROM users WHERE email = @email;
+```
+
+Optional filter pattern (parameter becomes a pointer):
+```sql
+-- name: ListUsers :rows
+SELECT * FROM users
+WHERE (status = @status OR @status IS NULL);
+```

@@ -142,6 +142,97 @@ func TestSchema_Lint(t *testing.T) {
 			},
 			wantWarnings: 1,
 		},
+		{
+			name: "FK without index warns",
+			schema: Schema{
+				Tables: []Table{
+					{
+						Schema:  "public",
+						Name:    "users",
+						Columns: []Column{{Name: "id", Type: "integer", PrimaryKey: true}},
+					},
+					{
+						Schema:  "public",
+						Name:    "posts",
+						Columns: []Column{{Name: "id", Type: "integer", PrimaryKey: true}, {Name: "user_id", Type: "integer"}},
+						Constraints: []Constraint{
+							{Type: "FOREIGN KEY", Columns: []string{"user_id"}, RefTable: "users", RefColumns: []string{"id"}},
+						},
+					},
+				},
+			},
+			wantWarnings: 1,
+		},
+		{
+			name: "FK with index no warning",
+			schema: Schema{
+				Tables: []Table{
+					{
+						Schema:  "public",
+						Name:    "users",
+						Columns: []Column{{Name: "id", Type: "integer", PrimaryKey: true}},
+					},
+					{
+						Schema:  "public",
+						Name:    "posts",
+						Columns: []Column{{Name: "id", Type: "integer", PrimaryKey: true}, {Name: "user_id", Type: "integer"}},
+						Constraints: []Constraint{
+							{Type: "FOREIGN KEY", Columns: []string{"user_id"}, RefTable: "users", RefColumns: []string{"id"}},
+						},
+					},
+				},
+				Indexes: []Index{
+					{Schema: "public", Name: "posts_user_id_idx", Table: "posts", Columns: []string{"user_id"}},
+				},
+			},
+			wantWarnings: 0,
+		},
+		{
+			name: "FK on PK column no warning",
+			schema: Schema{
+				Tables: []Table{
+					{
+						Schema:  "public",
+						Name:    "users",
+						Columns: []Column{{Name: "id", Type: "integer", PrimaryKey: true}},
+					},
+					{
+						Schema:  "public",
+						Name:    "user_profiles",
+						Columns: []Column{{Name: "user_id", Type: "integer", PrimaryKey: true}},
+						Constraints: []Constraint{
+							{Type: "FOREIGN KEY", Columns: []string{"user_id"}, RefTable: "users", RefColumns: []string{"id"}},
+						},
+					},
+				},
+			},
+			wantWarnings: 0,
+		},
+		{
+			name: "composite FK without index warns",
+			schema: Schema{
+				Tables: []Table{
+					{
+						Schema:  "public",
+						Name:    "orders",
+						Columns: []Column{{Name: "id", Type: "integer", PrimaryKey: true}, {Name: "tenant_id", Type: "integer"}},
+					},
+					{
+						Schema:  "public",
+						Name:    "order_items",
+						Columns: []Column{
+							{Name: "id", Type: "integer", PrimaryKey: true},
+							{Name: "order_id", Type: "integer"},
+							{Name: "tenant_id", Type: "integer"},
+						},
+						Constraints: []Constraint{
+							{Type: "FOREIGN KEY", Columns: []string{"tenant_id", "order_id"}, RefTable: "orders", RefColumns: []string{"tenant_id", "id"}},
+						},
+					},
+				},
+			},
+			wantWarnings: 1,
+		},
 	}
 
 	for _, tt := range tests {

@@ -1,17 +1,19 @@
-🤷‍♂️ shrugged is a declarative PostgreSQL schema migration tool that works fully offline.
+# shrugged
 
-## Why shrugged?
+Declarative PostgreSQL migrations and type-safe Go code generation. Fully offline, no cloud dependencies.
 
-- Declarative schema → forward and down migration generation
-- Schema diffing for all PostgreSQL objects
-- Migration apply/status tracking
-- Drift detection and validation
-- Fully offline and authentication-free
+## Features
+
+- **Declarative schema** - Write your schema once, get forward and rollback migrations generated automatically
+- **Schema diffing** - Supports all PostgreSQL objects (tables, indexes, functions, triggers, policies, etc.)
+- **Code generation** - Generate type-safe Go models and query bindings from your database
+- **Schema linting** - Catch issues like missing foreign key indexes before they hit production
+- **Drift detection** - Know when your database has diverged from your migrations
 
 ## Installation
 
 ```bash
-curl -sSL shrugged.terminallyonline.io | sh
+curl -fsSL https://raw.githubusercontent.com/terminally-online/shrugged/main/install.sh | sh
 ```
 
 Or with Go:
@@ -20,48 +22,15 @@ Or with Go:
 go install github.com/terminally-online/shrugged/cmd/shrugged@latest
 ```
 
-<details>
-<summary>Build from source</summary>
+**Requirements:** Docker, PostgreSQL 14+
 
-```bash
-git clone https://github.com/terminally-online/shrugged
-cd shrugged
-go build -o shrugged ./cmd/shrugged
-```
-</details>
-
-**Requirements:**
-- Go 1.23+
-- Docker (for diffing and migration generation)
-- PostgreSQL 14+ (target database)
-
-## Quick Start
-
-1. Define your schema in `schema.sql`:
-
-```sql
-CREATE TABLE users (
-    id SERIAL PRIMARY KEY,
-    email TEXT NOT NULL UNIQUE,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE INDEX idx_users_email ON users (email);
-```
-
-2. Generate a migration:
-
-```bash
-shrugged migrate --schema schema.sql
-```
-
-3. Apply it:
-
-```bash
-shrugged apply --url postgres://user:pass@localhost:5432/mydb
-```
+Once installed just run the command `shrugged` to see all the available options. 
 
 ## Documentation
 
 - [Configuration](docs/config.md)
 - [Commands](docs/shrugged.md)
+
+## License
+
+MIT

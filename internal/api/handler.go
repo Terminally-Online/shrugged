@@ -29,9 +29,9 @@ type DiffResult struct {
 }
 
 type HealthResponse struct {
-	Status     string `json:"status"`
-	PoolSize   int    `json:"pool_size"`
-	CacheSize  int    `json:"cache_size"`
+	Status    string `json:"status"`
+	PoolSize  int    `json:"pool_size"`
+	CacheSize int    `json:"cache_size"`
 }
 
 type Handler struct {

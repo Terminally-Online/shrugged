@@ -917,6 +917,69 @@ func (s *Schema) Lint() []string {
 		}
 	}
 
+	warnings = append(warnings, s.lintMissingForeignKeyIndexes()...)
+
+	return warnings
+}
+
+func (s *Schema) lintMissingForeignKeyIndexes() []string {
+	var warnings []string
+
+	tableIndexes := make(map[string]map[string]bool)
+	for _, idx := range s.Indexes {
+		key := idx.Schema + "." + idx.Table
+		if tableIndexes[key] == nil {
+			tableIndexes[key] = make(map[string]bool)
+		}
+		if len(idx.Columns) > 0 {
+			tableIndexes[key][idx.Columns[0]] = true
+		}
+	}
+
+	for _, table := range s.Tables {
+		tableKey := table.Schema + "." + table.Name
+
+		pkCols := make(map[string]bool)
+		for _, col := range table.Columns {
+			if col.PrimaryKey {
+				pkCols[col.Name] = true
+			}
+		}
+		for _, constraint := range table.Constraints {
+			if constraint.Type == "PRIMARY KEY" {
+				for _, col := range constraint.Columns {
+					pkCols[col] = true
+				}
+			}
+		}
+
+		for _, constraint := range table.Constraints {
+			if constraint.Type != "FOREIGN KEY" || len(constraint.Columns) == 0 {
+				continue
+			}
+
+			leadingCol := constraint.Columns[0]
+
+			if pkCols[leadingCol] {
+				continue
+			}
+
+			if tableIndexes[tableKey] != nil && tableIndexes[tableKey][leadingCol] {
+				continue
+			}
+
+			colList := constraint.Columns[0]
+			if len(constraint.Columns) > 1 {
+				colList = fmt.Sprintf("(%s, ...)", constraint.Columns[0])
+			}
+
+			warnings = append(warnings, fmt.Sprintf(
+				"table %q: foreign key on %s referencing %q has no index (queries joining on this column will be slow)",
+				table.Name, colList, constraint.RefTable,
+			))
+		}
+	}
+
 	return warnings
 }
 
