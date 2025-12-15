@@ -7,10 +7,10 @@ import (
 )
 
 type GetPostWithCommentsRow struct {
-	ID       *int64            `json:"id"`
-	Title    *string           `json:"title"`
-	Content  *string           `json:"content"`
-	Comments []models.Comments `json:"comments"`
+	ID       *int64            `json:"id,omitempty"`
+	Title    *string           `json:"title,omitempty"`
+	Content  *string           `json:"content,omitempty"`
+	Comments []models.Comments `json:"comments,omitempty"`
 }
 
 const get_post_with_commentsSQL = `

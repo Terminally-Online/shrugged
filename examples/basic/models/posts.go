@@ -9,9 +9,9 @@ type Posts struct {
 	UserID      int64      `json:"user_id"`
 	Title       string     `json:"title"`
 	Slug        string     `json:"slug"`
-	Content     *string    `json:"content"`
+	Content     *string    `json:"content,omitempty"`
 	Published   bool       `json:"published"`
-	PublishedAt *time.Time `json:"published_at"`
+	PublishedAt *time.Time `json:"published_at,omitempty"`
 	CreatedAt   time.Time  `json:"created_at"`
-	UpdatedAt   *time.Time `json:"updated_at"`
+	UpdatedAt   *time.Time `json:"updated_at,omitempty"`
 }

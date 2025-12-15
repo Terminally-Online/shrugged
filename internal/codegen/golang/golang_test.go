@@ -215,7 +215,7 @@ func TestGoGenerator_GenerateTable(t *testing.T) {
 		"CreatedAt time.Time",
 		`json:"id"`,
 		`json:"email"`,
-		`json:"bio"`,
+		`json:"bio,omitempty"`,
 		`json:"created_at"`,
 		`"time"`,
 	}

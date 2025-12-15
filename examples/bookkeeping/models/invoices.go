@@ -11,5 +11,5 @@ type Invoices struct {
 	Status   AccountStatus `json:"status"`
 	IssuedAt time.Time     `json:"issued_at"`
 	DueAt    time.Time     `json:"due_at"`
-	PaidAt   *time.Time    `json:"paid_at"`
+	PaidAt   *time.Time    `json:"paid_at,omitempty"`
 }

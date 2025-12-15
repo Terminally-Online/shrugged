@@ -150,7 +150,11 @@ func (g *GoGenerator) generateTable(table parser.Table, outDir string) error {
 			importSet[imp] = true
 		}
 		fieldName := toPascalCase(col.Name)
-		jsonTag := fmt.Sprintf(`json:"%s"`, toSnakeCase(col.Name))
+		jsonTag := toSnakeCase(col.Name)
+		if col.Nullable {
+			jsonTag += ",omitempty"
+		}
+		jsonTag = fmt.Sprintf(`json:"%s"`, jsonTag)
 		fields = append(fields, StructField{
 			Name: fieldName,
 			Type: goType,

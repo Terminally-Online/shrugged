@@ -240,7 +240,11 @@ func generateResultStruct(q parser.Query, modelsPackage string, customTypes map[
 			fieldType = prefixCustomType(fieldType, modelsPackage, customTypes)
 		}
 
-		tag := fmt.Sprintf("`json:%q`", toSnakeCase(col.Name))
+		jsonTag := toSnakeCase(col.Name)
+		if col.Nullable {
+			jsonTag += ",omitempty"
+		}
+		tag := fmt.Sprintf("`json:%q`", jsonTag)
 		sb.WriteString(fmt.Sprintf("\t%s %s %s\n", fieldName, fieldType, tag))
 	}
 

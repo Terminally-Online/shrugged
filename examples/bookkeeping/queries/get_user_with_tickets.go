@@ -7,11 +7,11 @@ import (
 )
 
 type GetUserWithTicketsRow struct {
-	ID          *int64           `json:"id"`
-	Email       *string          `json:"email"`
-	DisplayName *string          `json:"display_name"`
-	Role        *models.UserRole `json:"role"`
-	Tickets     []models.Tickets `json:"tickets"`
+	ID          *int64           `json:"id,omitempty"`
+	Email       *string          `json:"email,omitempty"`
+	DisplayName *string          `json:"display_name,omitempty"`
+	Role        *models.UserRole `json:"role,omitempty"`
+	Tickets     []models.Tickets `json:"tickets,omitempty"`
 }
 
 const get_user_with_ticketsSQL = `

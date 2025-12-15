@@ -7,10 +7,10 @@ import (
 )
 
 type GetUserWithPostsRow struct {
-	ID    *int64         `json:"id"`
-	Email *string        `json:"email"`
-	Name  *string        `json:"name"`
-	Posts []models.Posts `json:"posts"`
+	ID    *int64         `json:"id,omitempty"`
+	Email *string        `json:"email,omitempty"`
+	Name  *string        `json:"name,omitempty"`
+	Posts []models.Posts `json:"posts,omitempty"`
 }
 
 const get_user_with_postsSQL = `

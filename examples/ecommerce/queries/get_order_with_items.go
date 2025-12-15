@@ -8,11 +8,11 @@ import (
 )
 
 type GetOrderWithItemsRow struct {
-	ID         *int64              `json:"id"`
-	CustomerID *int64              `json:"customer_id"`
-	TotalCents *int64              `json:"total_cents"`
-	CreatedAt  *time.Time          `json:"created_at"`
-	Items      []models.OrderItems `json:"items"`
+	ID         *int64              `json:"id,omitempty"`
+	CustomerID *int64              `json:"customer_id,omitempty"`
+	TotalCents *int64              `json:"total_cents,omitempty"`
+	CreatedAt  *time.Time          `json:"created_at,omitempty"`
+	Items      []models.OrderItems `json:"items,omitempty"`
 }
 
 const get_order_with_itemsSQL = `
