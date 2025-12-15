@@ -128,6 +128,9 @@ func sortTablesByDependency(tables []parser.Table) []parser.Table {
 				if !strings.Contains(refKey, ".") {
 					refKey = objectKey(t.Schema, c.RefTable)
 				}
+				if refKey == key {
+					continue
+				}
 				if _, inSet := tableMap[refKey]; inSet {
 					deps[key] = append(deps[key], refKey)
 				}
