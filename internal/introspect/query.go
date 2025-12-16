@@ -5,11 +5,14 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"sync/atomic"
 
 	"github.com/jackc/pgx/v5"
 
 	"github.com/terminally-online/shrugged/internal/parser"
 )
+
+var stmtCounter atomic.Uint64
 
 var jsonAggTableRegex = regexp.MustCompile(`(?i)(json_agg|jsonb_agg)\s*\(\s*(\w+)\s*\.\s*\*\s*\)`)
 
@@ -69,7 +72,7 @@ func introspectQuery(ctx context.Context, conn *pgx.Conn, query parser.Query, sc
 		return introspectExecQuery(ctx, conn, query, schema, typeMap)
 	}
 
-	stmtName := fmt.Sprintf("shrugged_introspect_%s", query.Name)
+	stmtName := fmt.Sprintf("shrugged_introspect_%d_%s", stmtCounter.Add(1), query.Name)
 
 	sd, err := conn.Prepare(ctx, stmtName, query.PreparedSQL)
 	if err != nil {
@@ -127,7 +130,7 @@ func introspectQuery(ctx context.Context, conn *pgx.Conn, query parser.Query, sc
 }
 
 func introspectExecQuery(ctx context.Context, conn *pgx.Conn, query parser.Query, schema *parser.Schema, typeMap map[uint32]string) (parser.Query, error) {
-	stmtName := fmt.Sprintf("shrugged_introspect_%s", query.Name)
+	stmtName := fmt.Sprintf("shrugged_introspect_%d_%s", stmtCounter.Add(1), query.Name)
 
 	sd, err := conn.Prepare(ctx, stmtName, query.PreparedSQL)
 	if err != nil {
