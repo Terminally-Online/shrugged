@@ -34,11 +34,11 @@ DROP INDEX idx_audit_log_resource;
 
 DROP INDEX idx_audit_log_created_at;
 
-DROP TABLE tickets;
-
 DROP TABLE invoices;
 
 DROP TABLE audit_log;
+
+DROP TABLE tickets;
 
 DROP TABLE users;
 

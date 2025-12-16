@@ -36,6 +36,17 @@ CREATE TABLE addresses (
     CONSTRAINT addresses_pkey PRIMARY KEY (id)
 );
 
+CREATE TABLE categories (
+    id bigint NOT NULL DEFAULT nextval('categories_id_seq'::regclass),
+    parent_id bigint,
+    name text NOT NULL,
+    slug character varying NOT NULL,
+    description text,
+    CONSTRAINT categories_parent_id_fkey FOREIGN KEY (parent_id) REFERENCES categories (id) ON DELETE SET NULL,
+    CONSTRAINT categories_pkey PRIMARY KEY (id),
+    CONSTRAINT categories_slug_key UNIQUE (slug)
+);
+
 CREATE TABLE orders (
     id bigint NOT NULL DEFAULT nextval('orders_id_seq'::regclass),
     customer_id bigint NOT NULL,
@@ -52,17 +63,6 @@ CREATE TABLE orders (
     CONSTRAINT orders_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES customers (id),
     CONSTRAINT orders_pkey PRIMARY KEY (id),
     CONSTRAINT orders_shipping_address_id_fkey FOREIGN KEY (shipping_address_id) REFERENCES addresses (id)
-);
-
-CREATE TABLE categories (
-    id bigint NOT NULL DEFAULT nextval('categories_id_seq'::regclass),
-    parent_id bigint,
-    name text NOT NULL,
-    slug character varying NOT NULL,
-    description text,
-    CONSTRAINT categories_parent_id_fkey FOREIGN KEY (parent_id) REFERENCES categories (id) ON DELETE SET NULL,
-    CONSTRAINT categories_pkey PRIMARY KEY (id),
-    CONSTRAINT categories_slug_key UNIQUE (slug)
 );
 
 CREATE TABLE products (

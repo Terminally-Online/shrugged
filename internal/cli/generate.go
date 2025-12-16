@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/terminally-online/shrugged/internal/codegen"
 	"github.com/terminally-online/shrugged/internal/codegen/golang"
+	"github.com/terminally-online/shrugged/internal/docker"
 	"github.com/terminally-online/shrugged/internal/introspect"
 	"github.com/terminally-online/shrugged/internal/parser"
 )
@@ -22,15 +24,14 @@ var generateCmd = &cobra.Command{
 The generator introspects the database and creates type-safe models for tables,
 enums, and composite types in the specified language.
 
+If no database URL is provided, a temporary Postgres container is started and
+the schema file is applied automatically.
+
 Example:
+  shrugged generate --language go --out ./models
   shrugged generate --url postgres://localhost/mydb --language go --out ./models`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx := cmd.Context()
-
-		dbURL, err := cfg.GetDatabaseURL(&flags)
-		if err != nil {
-			return err
-		}
 
 		language := cfg.GetLanguage(&flags)
 		outDir := cfg.GetOut(&flags)
@@ -40,7 +41,48 @@ Example:
 			return fmt.Errorf("failed to get generator: %w (available: %v)", err, codegen.Languages())
 		}
 
-		fmt.Printf("Connecting to database...\n")
+		dbURL, err := cfg.GetDatabaseURL(&flags)
+		useEphemeral := err != nil || dbURL == ""
+
+		var container *docker.Container
+		if useEphemeral {
+			schemaFile := cfg.GetSchema(&flags)
+			if schemaFile == "" {
+				return fmt.Errorf("schema file is required when no database URL is provided")
+			}
+
+			schemaSQL, err := parser.LoadFile(schemaFile)
+			if err != nil {
+				return fmt.Errorf("failed to load schema file: %w", err)
+			}
+
+			postgresVersion := cfg.GetPostgresVersion(&flags)
+			dockerCfg := docker.PostgresConfig{
+				Version:  postgresVersion,
+				User:     "shrugged",
+				Password: "shrugged",
+				Database: "shrugged",
+			}
+
+			fmt.Println("Starting Postgres container...")
+			container, err = docker.StartPostgres(ctx, dockerCfg)
+			if err != nil {
+				return fmt.Errorf("failed to start postgres: %w", err)
+			}
+			defer func() {
+				fmt.Println("Stopping container...")
+				_ = docker.StopContainer(context.Background(), container.ID)
+			}()
+
+			fmt.Println("Applying schema...")
+			if err := docker.ExecuteSQL(ctx, container, schemaSQL); err != nil {
+				return fmt.Errorf("failed to apply schema: %w", err)
+			}
+
+			dbURL = container.ConnectionString()
+		}
+
+		fmt.Println("Connecting to database...")
 		schema, err := introspect.Database(ctx, dbURL)
 		if err != nil {
 			return fmt.Errorf("failed to introspect database: %w", err)
@@ -130,8 +172,8 @@ func findModulePathFromDir(startDir string) (modPath string, modDir string) {
 			lines := strings.Split(string(data), "\n")
 			for _, line := range lines {
 				line = strings.TrimSpace(line)
-				if strings.HasPrefix(line, "module ") {
-					return strings.TrimSpace(strings.TrimPrefix(line, "module ")), dir
+				if after, ok := strings.CutPrefix(line, "module "); ok {
+					return strings.TrimSpace(after), dir
 				}
 			}
 		}

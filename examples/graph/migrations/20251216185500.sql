@@ -1,3 +1,11 @@
+CREATE TABLE contract_relationship (
+    chain_id bigint NOT NULL,
+    contract_address text NOT NULL,
+    asset_contract_address text NOT NULL,
+    relationship_type text NOT NULL,
+    CONSTRAINT contract_relationship_pkey PRIMARY KEY (chain_id, contract_address, asset_contract_address, relationship_type)
+);
+
 CREATE TABLE contract (
     chain_id bigint NOT NULL,
     contract_address text NOT NULL,
@@ -23,14 +31,6 @@ CREATE TABLE contract_attribute (
     value text NOT NULL,
     block_number bigint NOT NULL DEFAULT 0,
     CONSTRAINT contract_attribute_pkey PRIMARY KEY (chain_id, contract_address, token_id, scope_address, name, block_number)
-);
-
-CREATE TABLE contract_relationship (
-    chain_id bigint NOT NULL,
-    contract_address text NOT NULL,
-    asset_contract_address text NOT NULL,
-    relationship_type text NOT NULL,
-    CONSTRAINT contract_relationship_pkey PRIMARY KEY (chain_id, contract_address, asset_contract_address, relationship_type)
 );
 
 GRANT USAGE ON TYPE contract TO PUBLIC;
