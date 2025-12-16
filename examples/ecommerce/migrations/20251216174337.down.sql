@@ -30,9 +30,9 @@ DROP TABLE order_items;
 
 DROP TABLE products;
 
-DROP TABLE orders;
-
 DROP TABLE categories;
+
+DROP TABLE orders;
 
 DROP TABLE addresses;
 
