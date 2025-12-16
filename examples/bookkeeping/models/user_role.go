@@ -3,8 +3,8 @@ package models
 type UserRole string
 
 const (
-	UserRoleAdmin     UserRole = "admin"
+	UserRoleAdmin UserRole = "admin"
 	UserRoleModerator UserRole = "moderator"
-	UserRoleMember    UserRole = "member"
-	UserRoleGuest     UserRole = "guest"
+	UserRoleMember UserRole = "member"
+	UserRoleGuest UserRole = "guest"
 )

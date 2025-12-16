@@ -28,15 +28,15 @@ DROP INDEX idx_addresses_customer_id;
 
 DROP TABLE order_items;
 
-DROP TABLE products;
-
 DROP TABLE orders;
-
-DROP TABLE categories;
 
 DROP TABLE addresses;
 
 DROP TABLE customers;
+
+DROP TABLE products;
+
+DROP TABLE categories;
 
 DROP SEQUENCE products_id_seq;
 

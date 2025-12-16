@@ -60,8 +60,15 @@ RETURNING id, customer_id, shipping_address_id, billing_address_id, subtotal_cen
 SELECT
     o.id,
     o.customer_id,
+    o.shipping_address_id,
+    o.billing_address_id,
+    o.subtotal_cents,
+    o.tax_cents,
+    o.shipping_cents,
     o.total_cents,
+    o.notes,
     o.created_at,
+    o.updated_at,
     (SELECT json_agg(oi.*) FROM order_items oi WHERE oi.order_id = o.id) as items
 FROM orders o
 WHERE o.id = @id;

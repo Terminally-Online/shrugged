@@ -136,12 +136,19 @@ func (g *GoGenerator) generateCompositeType(ct parser.CompositeType, outDir stri
 
 func (g *GoGenerator) generateTable(table parser.Table, outDir string) error {
 	typeName := toPascalCase(table.Name)
+	extensionTypeName := typeName + "Extension"
 	fileName := toSnakeCase(table.Name) + ".go"
 	filePath := filepath.Join(outDir, fileName)
 
 	var fields []StructField
 	var imports []string
 	importSet := make(map[string]bool)
+
+	fields = append(fields, StructField{
+		Name: extensionTypeName,
+		Type: "",
+		Tag:  "",
+	})
 
 	for _, col := range table.Columns {
 		goType, imp := pgTypeToGo(col.Type, col.Nullable)
@@ -163,7 +170,7 @@ func (g *GoGenerator) generateTable(table parser.Table, outDir string) error {
 	}
 
 	if fileExists(filePath) {
-		content, err := mergeStructFile(filePath, typeName, fields, imports)
+		content, err := mergeTableFile(filePath, typeName, extensionTypeName, fields, imports)
 		if err != nil {
 			return fmt.Errorf("failed to merge table file: %w", err)
 		}
@@ -181,8 +188,11 @@ func (g *GoGenerator) generateTable(table parser.Table, outDir string) error {
 		sb.WriteString(")\n\n")
 	}
 
+	sb.WriteString(fmt.Sprintf("type %s struct {}\n\n", extensionTypeName))
+
 	sb.WriteString(fmt.Sprintf("type %s struct {\n", typeName))
-	for _, field := range fields {
+	sb.WriteString(fmt.Sprintf("\t%s\n", extensionTypeName))
+	for _, field := range fields[1:] {
 		if field.Tag != "" {
 			sb.WriteString(fmt.Sprintf("\t%s %s `%s`\n", field.Name, field.Type, field.Tag))
 		} else {

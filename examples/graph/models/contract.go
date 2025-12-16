@@ -1,6 +1,13 @@
 package models
 
+type ContractExtension struct {
+	Attributes       *StringMap `json:"attributes,omitempty"`
+	Media            *StringMap `json:"media,omitempty"`
+	RelationshipType *string    `json:"relationship_type,omitempty"`
+}
+
 type Contract struct {
+	ContractExtension
 	ChainID         int64  `json:"chain_id"`
 	ContractAddress string `json:"contract_address"`
 	TokenID         string `json:"token_id"`

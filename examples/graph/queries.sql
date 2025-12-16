@@ -18,6 +18,34 @@ SELECT chain_id, contract_address, token_id, standard, protocol, name, symbol, d
 FROM contract
 WHERE chain_id = @chain_id AND contract_address = @contract_address AND token_id = @token_id;
 
+-- name: GetContractWithAttributes :row
+SELECT
+    c.chain_id, c.contract_address, c.token_id, c.standard, c.protocol,
+    c.name, c.symbol, c.decimals, c.icon, c.description, c.verified, c.color,
+    COALESCE(
+        json_object_agg(a.name, a.value) FILTER (WHERE a.name IS NOT NULL AND a.name NOT LIKE 'media:%'),
+        '{}'
+    )::json as attributes,
+    COALESCE(
+        json_object_agg(SUBSTRING(a.name FROM 7), a.value) FILTER (WHERE a.name LIKE 'media:%'),
+        '{}'
+    )::json as media
+FROM contract c
+LEFT JOIN (
+    SELECT DISTINCT ON (chain_id, contract_address, token_id, name)
+        chain_id, contract_address, token_id, name, value
+    FROM contract_attribute
+    WHERE scope_address = ''
+    ORDER BY chain_id, contract_address, token_id, name, block_number DESC
+) a ON c.chain_id = a.chain_id
+    AND c.contract_address = a.contract_address
+    AND c.token_id = a.token_id
+WHERE c.chain_id = @chain_id
+    AND c.contract_address = @contract_address
+    AND c.token_id = @token_id
+GROUP BY c.chain_id, c.contract_address, c.token_id, c.standard, c.protocol,
+    c.name, c.symbol, c.decimals, c.icon, c.description, c.verified, c.color;
+
 -- name: GetContracts :rows
 SELECT chain_id, contract_address, token_id, standard, protocol, name, symbol, decimals, icon, description, verified, color
 FROM contract
@@ -97,7 +125,9 @@ ORDER BY block_number DESC
 LIMIT 1;
 
 -- name: GetContractsWithAttribute :rows
-SELECT c.chain_id, c.contract_address, c.token_id, c.standard, c.protocol, c.name, c.symbol, c.decimals, c.icon, c.description, c.verified, c.color, a.value as attribute_value
+SELECT c.chain_id, c.contract_address, c.token_id, c.standard, c.protocol, c.name, c.symbol, c.decimals, c.icon, c.description, c.verified, c.color,
+    CASE WHEN a.name NOT LIKE 'media:%' THEN json_build_object(a.name, a.value)::json ELSE '{}'::json END as attributes,
+    CASE WHEN a.name LIKE 'media:%' THEN json_build_object(SUBSTRING(a.name FROM 7), a.value)::json ELSE '{}'::json END as media
 FROM contract c
 JOIN contract_attribute a ON a.chain_id = c.chain_id AND a.contract_address = c.contract_address AND a.token_id = c.token_id
 WHERE c.chain_id = @chain_id

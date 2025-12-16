@@ -32,24 +32,6 @@ CREATE TABLE users (
     CONSTRAINT users_pkey PRIMARY KEY (id)
 );
 
-CREATE TABLE tickets (
-    id bigint NOT NULL DEFAULT nextval('tickets_id_seq'::regclass),
-    user_id bigint NOT NULL,
-    assignee_id bigint,
-    priority priority_level NOT NULL DEFAULT 'medium'::priority_level,
-    status account_status NOT NULL DEFAULT 'active'::account_status,
-    title text NOT NULL,
-    description text,
-    tags text[],
-    due_date date,
-    created_at timestamp with time zone NOT NULL DEFAULT now(),
-    updated_at timestamp with time zone,
-    resolved_at timestamp with time zone,
-    CONSTRAINT tickets_assignee_id_fkey FOREIGN KEY (assignee_id) REFERENCES users (id) ON DELETE SET NULL,
-    CONSTRAINT tickets_pkey PRIMARY KEY (id),
-    CONSTRAINT tickets_user_id_fkey FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
-);
-
 CREATE TABLE audit_log (
     id bigint NOT NULL DEFAULT nextval('audit_log_id_seq'::regclass),
     user_id bigint,
@@ -75,6 +57,24 @@ CREATE TABLE invoices (
     paid_at timestamp with time zone,
     CONSTRAINT invoices_pkey PRIMARY KEY (id),
     CONSTRAINT invoices_user_id_fkey FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+);
+
+CREATE TABLE tickets (
+    id bigint NOT NULL DEFAULT nextval('tickets_id_seq'::regclass),
+    user_id bigint NOT NULL,
+    assignee_id bigint,
+    priority priority_level NOT NULL DEFAULT 'medium'::priority_level,
+    status account_status NOT NULL DEFAULT 'active'::account_status,
+    title text NOT NULL,
+    description text,
+    tags text[],
+    due_date date,
+    created_at timestamp with time zone NOT NULL DEFAULT now(),
+    updated_at timestamp with time zone,
+    resolved_at timestamp with time zone,
+    CONSTRAINT tickets_assignee_id_fkey FOREIGN KEY (assignee_id) REFERENCES users (id) ON DELETE SET NULL,
+    CONSTRAINT tickets_pkey PRIMARY KEY (id),
+    CONSTRAINT tickets_user_id_fkey FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 );
 
 CREATE INDEX idx_audit_log_created_at ON audit_log (created_at);

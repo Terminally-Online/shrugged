@@ -121,7 +121,7 @@ Example:
 
 				modelsPackage := determineModelsPackage(outDir)
 				fmt.Printf("Generating query bindings to %s...\n", queriesOutDir)
-				if err := golang.GenerateQueries(queries, queriesOutDir, modelsPackage, schema); err != nil {
+				if err := golang.GenerateQueries(queries, queriesOutDir, modelsPackage, outDir, schema); err != nil {
 					return fmt.Errorf("failed to generate queries: %w", err)
 				}
 

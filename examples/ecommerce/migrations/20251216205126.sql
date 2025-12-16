@@ -10,6 +10,36 @@ CREATE SEQUENCE orders_id_seq START 1 INCREMENT 1 MINVALUE 1 MAXVALUE 9223372036
 
 CREATE SEQUENCE products_id_seq START 1 INCREMENT 1 MINVALUE 1 MAXVALUE 9223372036854775807 CACHE 1;
 
+CREATE TABLE categories (
+    id bigint NOT NULL DEFAULT nextval('categories_id_seq'::regclass),
+    parent_id bigint,
+    name text NOT NULL,
+    slug character varying NOT NULL,
+    description text,
+    CONSTRAINT categories_parent_id_fkey FOREIGN KEY (parent_id) REFERENCES categories (id) ON DELETE SET NULL,
+    CONSTRAINT categories_pkey PRIMARY KEY (id),
+    CONSTRAINT categories_slug_key UNIQUE (slug)
+);
+
+CREATE TABLE products (
+    id bigint NOT NULL DEFAULT nextval('products_id_seq'::regclass),
+    category_id bigint,
+    sku character varying NOT NULL,
+    name text NOT NULL,
+    description text,
+    price_cents bigint NOT NULL,
+    quantity_in_stock integer NOT NULL DEFAULT 0,
+    weight_grams integer,
+    is_active boolean NOT NULL DEFAULT true,
+    metadata jsonb,
+    tags text[],
+    created_at timestamp with time zone NOT NULL DEFAULT now(),
+    updated_at timestamp with time zone,
+    CONSTRAINT products_category_id_fkey FOREIGN KEY (category_id) REFERENCES categories (id) ON DELETE SET NULL,
+    CONSTRAINT products_pkey PRIMARY KEY (id),
+    CONSTRAINT products_sku_key UNIQUE (sku)
+);
+
 CREATE TABLE customers (
     id bigint NOT NULL DEFAULT nextval('customers_id_seq'::regclass),
     email character varying NOT NULL,
@@ -36,17 +66,6 @@ CREATE TABLE addresses (
     CONSTRAINT addresses_pkey PRIMARY KEY (id)
 );
 
-CREATE TABLE categories (
-    id bigint NOT NULL DEFAULT nextval('categories_id_seq'::regclass),
-    parent_id bigint,
-    name text NOT NULL,
-    slug character varying NOT NULL,
-    description text,
-    CONSTRAINT categories_parent_id_fkey FOREIGN KEY (parent_id) REFERENCES categories (id) ON DELETE SET NULL,
-    CONSTRAINT categories_pkey PRIMARY KEY (id),
-    CONSTRAINT categories_slug_key UNIQUE (slug)
-);
-
 CREATE TABLE orders (
     id bigint NOT NULL DEFAULT nextval('orders_id_seq'::regclass),
     customer_id bigint NOT NULL,
@@ -63,25 +82,6 @@ CREATE TABLE orders (
     CONSTRAINT orders_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES customers (id),
     CONSTRAINT orders_pkey PRIMARY KEY (id),
     CONSTRAINT orders_shipping_address_id_fkey FOREIGN KEY (shipping_address_id) REFERENCES addresses (id)
-);
-
-CREATE TABLE products (
-    id bigint NOT NULL DEFAULT nextval('products_id_seq'::regclass),
-    category_id bigint,
-    sku character varying NOT NULL,
-    name text NOT NULL,
-    description text,
-    price_cents bigint NOT NULL,
-    quantity_in_stock integer NOT NULL DEFAULT 0,
-    weight_grams integer,
-    is_active boolean NOT NULL DEFAULT true,
-    metadata jsonb,
-    tags text[],
-    created_at timestamp with time zone NOT NULL DEFAULT now(),
-    updated_at timestamp with time zone,
-    CONSTRAINT products_category_id_fkey FOREIGN KEY (category_id) REFERENCES categories (id) ON DELETE SET NULL,
-    CONSTRAINT products_pkey PRIMARY KEY (id),
-    CONSTRAINT products_sku_key UNIQUE (sku)
 );
 
 CREATE TABLE order_items (

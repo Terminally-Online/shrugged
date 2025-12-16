@@ -2,23 +2,8 @@ package queries
 
 import (
 	"context"
+	"example/graph/models"
 )
-
-type GetPairTokensRow struct {
-	ChainID          *int64  `json:"chain_id,omitempty"`
-	ContractAddress  *string `json:"contract_address,omitempty"`
-	TokenID          *string `json:"token_id,omitempty"`
-	Standard         *string `json:"standard,omitempty"`
-	Protocol         *string `json:"protocol,omitempty"`
-	Name             *string `json:"name,omitempty"`
-	Symbol           *string `json:"symbol,omitempty"`
-	Decimals         *int64  `json:"decimals,omitempty"`
-	Icon             *string `json:"icon,omitempty"`
-	Description      *string `json:"description,omitempty"`
-	Verified         *bool   `json:"verified,omitempty"`
-	Color            *string `json:"color,omitempty"`
-	RelationshipType *string `json:"relationship_type,omitempty"`
-}
 
 const get_pair_tokensSQL = `
 SELECT c.chain_id, c.contract_address, c.token_id, c.standard, c.protocol, c.name, c.symbol, c.decimals, c.icon, c.description, c.verified, c.color, r.relationship_type
@@ -29,16 +14,16 @@ WHERE r.chain_id = $1
   AND r.relationship_type IN ('token:0', 'token:1')
 ORDER BY r.relationship_type;`
 
-func (q *Queries) GetPairTokens(ctx context.Context, chain_id int64, pair_address string) ([]GetPairTokensRow, error) {
+func (q *Queries) GetPairTokens(ctx context.Context, chain_id int64, pair_address string) ([]models.Contract, error) {
 	rows, err := q.db.Query(ctx, get_pair_tokensSQL, chain_id, pair_address)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	var result []GetPairTokensRow
+	var result []models.Contract
 	for rows.Next() {
-		var item GetPairTokensRow
+		var item models.Contract
 		err := rows.Scan(&item.ChainID, &item.ContractAddress, &item.TokenID, &item.Standard, &item.Protocol, &item.Name, &item.Symbol, &item.Decimals, &item.Icon, &item.Description, &item.Verified, &item.Color, &item.RelationshipType)
 		if err != nil {
 			return nil, err

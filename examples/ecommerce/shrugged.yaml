@@ -1,0 +1,7 @@
+database_url: ${DATABASE_URL}
+schema: schema.sql
+migrations_dir: migrations
+out: models
+language: go
+queries: queries.sql
+queries_out: queries
