@@ -28,6 +28,7 @@ type Flags struct {
 	Language        string
 	Queries         string
 	QueriesOut      string
+	Clean           bool
 }
 
 func Load(path string) (*Config, error) {
@@ -131,6 +132,13 @@ func (c *Config) GetQueriesOut(flags *Flags) string {
 		return c.QueriesOut
 	}
 	return "queries"
+}
+
+func (c *Config) GetClean(flags *Flags) bool {
+	if flags != nil {
+		return flags.Clean
+	}
+	return false
 }
 
 func expandEnv(s string) string {

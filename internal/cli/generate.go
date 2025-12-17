@@ -27,9 +27,12 @@ enums, and composite types in the specified language.
 If no database URL is provided, a temporary Postgres container is started and
 the schema file is applied automatically.
 
+Use --clean to remove orphaned query files that no longer have corresponding SQL queries.
+
 Example:
   shrugged generate --language go --out ./models
-  shrugged generate --url postgres://localhost/mydb --language go --out ./models`,
+  shrugged generate --url postgres://localhost/mydb --language go --out ./models
+  shrugged generate --clean`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx := cmd.Context()
 
@@ -120,12 +123,17 @@ Example:
 				}
 
 				modelsPackage := determineModelsPackage(outDir)
+				clean := cfg.GetClean(&flags)
 				fmt.Printf("Generating query bindings to %s...\n", queriesOutDir)
-				if err := golang.GenerateQueries(queries, queriesOutDir, modelsPackage, outDir, schema); err != nil {
+				removed, err := golang.GenerateQueries(queries, queriesOutDir, modelsPackage, outDir, schema, clean)
+				if err != nil {
 					return fmt.Errorf("failed to generate queries: %w", err)
 				}
 
 				fmt.Printf("Generated %d query functions\n", len(queries))
+				if len(removed) > 0 {
+					fmt.Printf("Removed %d orphaned files\n", len(removed))
+				}
 			}
 		}
 
@@ -138,6 +146,7 @@ func init() {
 	generateCmd.Flags().StringVar(&flags.Language, "language", "", "target language (default: go)")
 	generateCmd.Flags().StringVar(&flags.Queries, "queries", "", "path to queries file or directory")
 	generateCmd.Flags().StringVar(&flags.QueriesOut, "queries-out", "", "output directory for query bindings")
+	generateCmd.Flags().BoolVar(&flags.Clean, "clean", false, "remove orphaned query files that no longer have corresponding SQL queries")
 }
 
 func determineModelsPackage(outDir string) string {

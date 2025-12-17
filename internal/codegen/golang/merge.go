@@ -99,6 +99,8 @@ func mergeTableFile(filePath string, structName string, extensionName string, fi
 		}
 	}
 
+	filteredImports := filterImportsForFields(filteredFields, newImports)
+
 	mainStructFound := false
 	extensionStructFound := false
 
@@ -135,7 +137,8 @@ func mergeTableFile(filePath string, structName string, extensionName string, fi
 		addStructDeclWithEmbed(file, structName, extensionName, filteredFields)
 	}
 
-	ensureImports(file, newImports)
+	removeUnusedImports(file, filteredImports)
+	ensureImports(file, filteredImports)
 
 	var buf bytes.Buffer
 	if err := format.Node(&buf, fset, file); err != nil {
@@ -143,6 +146,63 @@ func mergeTableFile(filePath string, structName string, extensionName string, fi
 	}
 
 	return buf.Bytes(), nil
+}
+
+func removeUnusedImports(file *ast.File, neededImports []string) {
+	needed := make(map[string]bool)
+	for _, imp := range neededImports {
+		needed[imp] = true
+	}
+
+	for _, decl := range file.Decls {
+		genDecl, ok := decl.(*ast.GenDecl)
+		if !ok || genDecl.Tok != token.IMPORT {
+			continue
+		}
+
+		var keptSpecs []ast.Spec
+		for _, spec := range genDecl.Specs {
+			importSpec, ok := spec.(*ast.ImportSpec)
+			if !ok {
+				keptSpecs = append(keptSpecs, spec)
+				continue
+			}
+
+			path := strings.Trim(importSpec.Path.Value, `"`)
+			if path == "encoding/json" && !needed["encoding/json"] {
+				continue
+			}
+			if path == "time" && !needed["time"] {
+				continue
+			}
+
+			keptSpecs = append(keptSpecs, spec)
+		}
+
+		genDecl.Specs = keptSpecs
+	}
+}
+
+func filterImportsForFields(fields []StructField, imports []string) []string {
+	neededImports := make(map[string]bool)
+
+	for _, f := range fields {
+		if strings.HasPrefix(f.Type, "time.") || f.Type == "time.Time" || f.Type == "*time.Time" {
+			neededImports["time"] = true
+		}
+		if strings.HasPrefix(f.Type, "json.") || strings.Contains(f.Type, "json.RawMessage") {
+			neededImports["encoding/json"] = true
+		}
+	}
+
+	var filtered []string
+	for _, imp := range imports {
+		if neededImports[imp] {
+			filtered = append(filtered, imp)
+		}
+	}
+
+	return filtered
 }
 
 func mergeEnumFile(filePath string, typeName string, values []EnumValue) ([]byte, error) {

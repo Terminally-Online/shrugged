@@ -10,25 +10,65 @@ import (
 	"github.com/terminally-online/shrugged/internal/parser"
 )
 
-func GenerateQueries(queries []parser.Query, outDir string, modelsPackage string, modelsDir string, schema *parser.Schema) error {
+func GenerateQueries(queries []parser.Query, outDir string, modelsPackage string, modelsDir string, schema *parser.Schema, clean bool) ([]string, error) {
 	if err := os.MkdirAll(outDir, 0755); err != nil {
-		return fmt.Errorf("failed to create output directory: %w", err)
+		return nil, fmt.Errorf("failed to create output directory: %w", err)
 	}
 
 	if err := generateQuerierInterface(outDir); err != nil {
-		return err
+		return nil, err
 	}
 
 	customTypes := buildCustomTypeSet(schema)
 	extensionFields := loadAllExtensionFields(modelsDir)
 
+	generatedFiles := make(map[string]bool)
+	generatedFiles["querier.go"] = true
+	generatedFiles["global.go"] = true
+
 	for _, q := range queries {
 		if err := generateQueryFile(q, outDir, modelsPackage, customTypes, schema, extensionFields); err != nil {
-			return err
+			return nil, err
+		}
+		fileName := toSnakeCaseLower(q.Name) + ".go"
+		generatedFiles[fileName] = true
+	}
+
+	var removed []string
+	if clean {
+		removed = cleanOrphanedFiles(outDir, generatedFiles)
+	}
+
+	return removed, nil
+}
+
+func cleanOrphanedFiles(outDir string, generatedFiles map[string]bool) []string {
+	var removed []string
+
+	entries, err := os.ReadDir(outDir)
+	if err != nil {
+		return removed
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+
+		name := entry.Name()
+		if !strings.HasSuffix(name, ".go") {
+			continue
+		}
+
+		if !generatedFiles[name] {
+			filePath := filepath.Join(outDir, name)
+			if err := os.Remove(filePath); err == nil {
+				removed = append(removed, name)
+			}
 		}
 	}
 
-	return nil
+	return removed
 }
 
 func loadAllExtensionFields(modelsDir string) map[string][]StructField {
