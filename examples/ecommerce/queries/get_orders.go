@@ -5,6 +5,11 @@ import (
 	"example/ecommerce/models"
 )
 
+type GetOrdersParams struct {
+	ID *int64 `json:"id,omitempty"`
+	CustomerID *int64 `json:"customer_id,omitempty"`
+}
+
 const get_ordersSQL = `
 SELECT id, customer_id, shipping_address_id, billing_address_id,
        subtotal_cents, tax_cents, shipping_cents, total_cents, notes,
@@ -14,8 +19,8 @@ WHERE (id = $1 OR $1 IS NULL)
   AND (customer_id = $2 OR $2 IS NULL)
 ORDER BY created_at DESC;`
 
-func (q *Queries) GetOrders(ctx context.Context, id *int64, customer_id *int64) ([]models.Orders, error) {
-	rows, err := q.db.Query(ctx, get_ordersSQL, id, customer_id)
+func (q *Queries) GetOrders(ctx context.Context, params GetOrdersParams) ([]models.Orders, error) {
+	rows, err := q.db.Query(ctx, get_ordersSQL, params.ID, params.CustomerID)
 	if err != nil {
 		return nil, err
 	}

@@ -5,6 +5,12 @@ import (
 	"example/graph/models"
 )
 
+type GetContractsWithAttributeParams struct {
+	ChainID int64 `json:"chain_id"`
+	AttributeName string `json:"attribute_name"`
+	AttributeValue string `json:"attribute_value"`
+}
+
 const get_contracts_with_attributeSQL = `
 SELECT c.chain_id, c.contract_address, c.token_id, c.standard, c.protocol, c.name, c.symbol, c.decimals, c.icon, c.description, c.verified, c.color,
     CASE WHEN a.name NOT LIKE 'media:%' THEN json_build_object(a.name, a.value)::json ELSE '{}'::json END as attributes,
@@ -15,8 +21,8 @@ WHERE c.chain_id = $1
   AND a.name = $2
   AND ($3 = '' OR a.value = $3);`
 
-func (q *Queries) GetContractsWithAttribute(ctx context.Context, chain_id int64, attribute_name string, attribute_value string) ([]models.Contract, error) {
-	rows, err := q.db.Query(ctx, get_contracts_with_attributeSQL, chain_id, attribute_name, attribute_value)
+func (q *Queries) GetContractsWithAttribute(ctx context.Context, params GetContractsWithAttributeParams) ([]models.Contract, error) {
+	rows, err := q.db.Query(ctx, get_contracts_with_attributeSQL, params.ChainID, params.AttributeName, params.AttributeValue)
 	if err != nil {
 		return nil, err
 	}

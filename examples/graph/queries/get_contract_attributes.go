@@ -5,6 +5,13 @@ import (
 	"example/graph/models"
 )
 
+type GetContractAttributesParams struct {
+	ChainID int64 `json:"chain_id"`
+	ContractAddress string `json:"contract_address"`
+	TokenID string `json:"token_id"`
+	ScopeAddress string `json:"scope_address"`
+}
+
 const get_contract_attributesSQL = `
 SELECT chain_id, contract_address, token_id, scope_address, name, value, block_number
 FROM contract_attribute
@@ -14,8 +21,8 @@ WHERE chain_id = $1
   AND ($4 = '' OR scope_address = $4)
 ORDER BY name, block_number DESC;`
 
-func (q *Queries) GetContractAttributes(ctx context.Context, chain_id int64, contract_address string, token_id string, scope_address string) ([]models.ContractAttribute, error) {
-	rows, err := q.db.Query(ctx, get_contract_attributesSQL, chain_id, contract_address, token_id, scope_address)
+func (q *Queries) GetContractAttributes(ctx context.Context, params GetContractAttributesParams) ([]models.ContractAttribute, error) {
+	rows, err := q.db.Query(ctx, get_contract_attributesSQL, params.ChainID, params.ContractAddress, params.TokenID, params.ScopeAddress)
 	if err != nil {
 		return nil, err
 	}

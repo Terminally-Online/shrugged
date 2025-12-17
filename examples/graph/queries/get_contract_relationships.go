@@ -5,13 +5,18 @@ import (
 	"example/graph/models"
 )
 
+type GetContractRelationshipsParams struct {
+	ChainID int64 `json:"chain_id"`
+	ContractAddress string `json:"contract_address"`
+}
+
 const get_contract_relationshipsSQL = `
 SELECT chain_id, contract_address, asset_contract_address, relationship_type
 FROM contract_relationship
 WHERE chain_id = $1 AND contract_address = $2;`
 
-func (q *Queries) GetContractRelationships(ctx context.Context, chain_id int64, contract_address string) ([]models.ContractRelationship, error) {
-	rows, err := q.db.Query(ctx, get_contract_relationshipsSQL, chain_id, contract_address)
+func (q *Queries) GetContractRelationships(ctx context.Context, params GetContractRelationshipsParams) ([]models.ContractRelationship, error) {
+	rows, err := q.db.Query(ctx, get_contract_relationshipsSQL, params.ChainID, params.ContractAddress)
 	if err != nil {
 		return nil, err
 	}

@@ -7,9 +7,9 @@ import (
 )
 
 type GetUserWithPostsRow struct {
-	ID    *int64         `json:"id,omitempty"`
-	Email *string        `json:"email,omitempty"`
-	Name  *string        `json:"name,omitempty"`
+	ID *int64 `json:"id,omitempty"`
+	Email *string `json:"email,omitempty"`
+	Name *string `json:"name,omitempty"`
 	Posts []models.Posts `json:"posts,omitempty"`
 }
 

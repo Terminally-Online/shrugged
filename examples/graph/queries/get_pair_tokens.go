@@ -5,6 +5,11 @@ import (
 	"example/graph/models"
 )
 
+type GetPairTokensParams struct {
+	ChainID int64 `json:"chain_id"`
+	PairAddress string `json:"pair_address"`
+}
+
 const get_pair_tokensSQL = `
 SELECT c.chain_id, c.contract_address, c.token_id, c.standard, c.protocol, c.name, c.symbol, c.decimals, c.icon, c.description, c.verified, c.color, r.relationship_type
 FROM contract_relationship r
@@ -14,8 +19,8 @@ WHERE r.chain_id = $1
   AND r.relationship_type IN ('token:0', 'token:1')
 ORDER BY r.relationship_type;`
 
-func (q *Queries) GetPairTokens(ctx context.Context, chain_id int64, pair_address string) ([]models.Contract, error) {
-	rows, err := q.db.Query(ctx, get_pair_tokensSQL, chain_id, pair_address)
+func (q *Queries) GetPairTokens(ctx context.Context, params GetPairTokensParams) ([]models.Contract, error) {
+	rows, err := q.db.Query(ctx, get_pair_tokensSQL, params.ChainID, params.PairAddress)
 	if err != nil {
 		return nil, err
 	}

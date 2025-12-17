@@ -5,14 +5,19 @@ import (
 	"example/graph/models"
 )
 
+type GetRelatedContractsParams struct {
+	ChainID int64 `json:"chain_id"`
+	ContractAddress string `json:"contract_address"`
+}
+
 const get_related_contractsSQL = `
 SELECT c.chain_id, c.contract_address, c.token_id, c.standard, c.protocol, c.name, c.symbol, c.decimals, c.icon, c.description, c.verified, c.color, r.relationship_type
 FROM contract_relationship r
 JOIN contract c ON c.chain_id = r.chain_id AND c.contract_address = r.asset_contract_address AND c.token_id = ''
 WHERE r.chain_id = $1 AND r.contract_address = $2;`
 
-func (q *Queries) GetRelatedContracts(ctx context.Context, chain_id int64, contract_address string) ([]models.Contract, error) {
-	rows, err := q.db.Query(ctx, get_related_contractsSQL, chain_id, contract_address)
+func (q *Queries) GetRelatedContracts(ctx context.Context, params GetRelatedContractsParams) ([]models.Contract, error) {
+	rows, err := q.db.Query(ctx, get_related_contractsSQL, params.ChainID, params.ContractAddress)
 	if err != nil {
 		return nil, err
 	}

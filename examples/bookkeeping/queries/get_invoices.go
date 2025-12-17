@@ -5,6 +5,12 @@ import (
 	"example/bookkeeping/models"
 )
 
+type GetInvoicesParams struct {
+	ID *int64 `json:"id,omitempty"`
+	UserID *int64 `json:"user_id,omitempty"`
+	Status *models.AccountStatus `json:"status,omitempty"`
+}
+
 const get_invoicesSQL = `
 SELECT id, user_id, amount, status, issued_at, due_at, paid_at
 FROM invoices
@@ -13,8 +19,8 @@ WHERE (id = $1 OR $1 IS NULL)
   AND (status = $3 OR $3 IS NULL)
 ORDER BY due_at ASC;`
 
-func (q *Queries) GetInvoices(ctx context.Context, id *int64, user_id *int64, status *models.AccountStatus) ([]models.Invoices, error) {
-	rows, err := q.db.Query(ctx, get_invoicesSQL, id, user_id, status)
+func (q *Queries) GetInvoices(ctx context.Context, params GetInvoicesParams) ([]models.Invoices, error) {
+	rows, err := q.db.Query(ctx, get_invoicesSQL, params.ID, params.UserID, params.Status)
 	if err != nil {
 		return nil, err
 	}

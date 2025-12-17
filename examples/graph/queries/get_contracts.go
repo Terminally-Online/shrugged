@@ -5,6 +5,13 @@ import (
 	"example/graph/models"
 )
 
+type GetContractsParams struct {
+	ChainID int64 `json:"chain_id"`
+	Standard string `json:"standard"`
+	Protocol string `json:"protocol"`
+	Verified bool `json:"verified"`
+}
+
 const get_contractsSQL = `
 SELECT chain_id, contract_address, token_id, standard, protocol, name, symbol, decimals, icon, description, verified, color
 FROM contract
@@ -14,8 +21,8 @@ WHERE chain_id = $1
   AND ($4::BOOLEAN IS NULL OR verified = $4)
 ORDER BY name;`
 
-func (q *Queries) GetContracts(ctx context.Context, chain_id int64, standard string, protocol string, verified bool) ([]models.Contract, error) {
-	rows, err := q.db.Query(ctx, get_contractsSQL, chain_id, standard, protocol, verified)
+func (q *Queries) GetContracts(ctx context.Context, params GetContractsParams) ([]models.Contract, error) {
+	rows, err := q.db.Query(ctx, get_contractsSQL, params.ChainID, params.Standard, params.Protocol, params.Verified)
 	if err != nil {
 		return nil, err
 	}

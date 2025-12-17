@@ -5,6 +5,12 @@ import (
 	"example/bookkeeping/models"
 )
 
+type GetAuditLogParams struct {
+	UserID *int64 `json:"user_id,omitempty"`
+	ResourceType *string `json:"resource_type,omitempty"`
+	ResourceID *int64 `json:"resource_id,omitempty"`
+}
+
 const get_audit_logSQL = `
 SELECT id, user_id, action, resource_type, resource_id, old_values, new_values,
        ip_address, user_agent, created_at
@@ -15,8 +21,8 @@ WHERE (user_id = $1 OR $1 IS NULL)
 ORDER BY created_at DESC
 LIMIT 100;`
 
-func (q *Queries) GetAuditLog(ctx context.Context, user_id *int64, resource_type *string, resource_id *int64) ([]models.AuditLog, error) {
-	rows, err := q.db.Query(ctx, get_audit_logSQL, user_id, resource_type, resource_id)
+func (q *Queries) GetAuditLog(ctx context.Context, params GetAuditLogParams) ([]models.AuditLog, error) {
+	rows, err := q.db.Query(ctx, get_audit_logSQL, params.UserID, params.ResourceType, params.ResourceID)
 	if err != nil {
 		return nil, err
 	}

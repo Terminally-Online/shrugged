@@ -5,6 +5,12 @@ import (
 	"example/basic/models"
 )
 
+type GetPostsParams struct {
+	ID *int64 `json:"id,omitempty"`
+	UserID *int64 `json:"user_id,omitempty"`
+	Published *bool `json:"published,omitempty"`
+}
+
 const get_postsSQL = `
 SELECT id, user_id, title, slug, content, published, published_at, created_at, updated_at
 FROM posts
@@ -13,8 +19,8 @@ WHERE (id = $1 OR $1 IS NULL)
   AND (published = $3 OR $3 IS NULL)
 ORDER BY created_at DESC;`
 
-func (q *Queries) GetPosts(ctx context.Context, id *int64, user_id *int64, published *bool) ([]models.Posts, error) {
-	rows, err := q.db.Query(ctx, get_postsSQL, id, user_id, published)
+func (q *Queries) GetPosts(ctx context.Context, params GetPostsParams) ([]models.Posts, error) {
+	rows, err := q.db.Query(ctx, get_postsSQL, params.ID, params.UserID, params.Published)
 	if err != nil {
 		return nil, err
 	}

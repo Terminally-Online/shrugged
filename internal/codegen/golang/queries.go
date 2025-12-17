@@ -243,6 +243,12 @@ func generateQueryFile(q parser.Query, outDir string, modelsPackage string, cust
 		sb.WriteString("\n")
 	}
 
+	needsParamsStruct := len(q.Parameters) > 1
+	if needsParamsStruct {
+		sb.WriteString(generateParamsStruct(q, modelsPackage, customTypes))
+		sb.WriteString("\n")
+	}
+
 	sb.WriteString(generateQueryConstant(q))
 	sb.WriteString("\n")
 
@@ -349,6 +355,35 @@ func generateResultStruct(q parser.Query, modelsPackage string, customTypes map[
 	return sb.String()
 }
 
+func generateParamsStruct(q parser.Query, modelsPackage string, customTypes map[string]bool) string {
+	var sb strings.Builder
+
+	structName := q.Name + "Params"
+	sb.WriteString(fmt.Sprintf("type %s struct {\n", structName))
+
+	for _, p := range q.Parameters {
+		fieldName := toPascalCase(p.Name)
+		fieldType := p.GoType
+		if fieldType == "" {
+			fieldType = "interface{}"
+		}
+		fieldType = prefixCustomType(fieldType, modelsPackage, customTypes)
+		if p.Nullable && !strings.HasPrefix(fieldType, "*") {
+			fieldType = "*" + fieldType
+		}
+
+		jsonTag := toSnakeCase(p.Name)
+		if p.Nullable {
+			jsonTag += ",omitempty"
+		}
+		tag := fmt.Sprintf("`json:%q`", jsonTag)
+		sb.WriteString(fmt.Sprintf("\t%s %s %s\n", fieldName, fieldType, tag))
+	}
+
+	sb.WriteString("}\n")
+	return sb.String()
+}
+
 func prefixCustomType(goType string, modelsPackage string, customTypes map[string]bool) string {
 	if modelsPackage == "" {
 		return goType
@@ -389,17 +424,24 @@ func generateQueryFunction(q parser.Query, modelsPackage string, needsResultStru
 		structName = q.Name + "Row"
 	}
 
+	useParamsStruct := len(q.Parameters) > 1
 	params := []string{"ctx context.Context"}
-	for _, p := range q.Parameters {
-		paramType := p.GoType
-		if paramType == "" {
-			paramType = "interface{}"
+
+	if useParamsStruct {
+		paramsStructName := q.Name + "Params"
+		params = append(params, fmt.Sprintf("params %s", paramsStructName))
+	} else {
+		for _, p := range q.Parameters {
+			paramType := p.GoType
+			if paramType == "" {
+				paramType = "interface{}"
+			}
+			paramType = prefixCustomType(paramType, modelsPackage, customTypes)
+			if p.Nullable && !strings.HasPrefix(paramType, "*") {
+				paramType = "*" + paramType
+			}
+			params = append(params, fmt.Sprintf("%s %s", p.Name, paramType))
 		}
-		paramType = prefixCustomType(paramType, modelsPackage, customTypes)
-		if p.Nullable && !strings.HasPrefix(paramType, "*") {
-			paramType = "*" + paramType
-		}
-		params = append(params, fmt.Sprintf("%s %s", p.Name, paramType))
 	}
 
 	var returnType string
@@ -418,7 +460,11 @@ func generateQueryFunction(q parser.Query, modelsPackage string, needsResultStru
 
 	args := make([]string, len(q.Parameters))
 	for i, p := range q.Parameters {
-		args[i] = p.Name
+		if useParamsStruct {
+			args[i] = "params." + toPascalCase(p.Name)
+		} else {
+			args[i] = p.Name
+		}
 	}
 	argsStr := strings.Join(args, ", ")
 
