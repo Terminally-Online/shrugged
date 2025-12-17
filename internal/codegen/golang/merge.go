@@ -169,10 +169,10 @@ func removeUnusedImports(file *ast.File, neededImports []string) {
 			}
 
 			path := strings.Trim(importSpec.Path.Value, `"`)
-			if path == "encoding/json" && !needed["encoding/json"] {
+			if path == "encoding/json" && !needed["encoding/json"] && !isPackageUsedInFile(file, "json") {
 				continue
 			}
-			if path == "time" && !needed["time"] {
+			if path == "time" && !needed["time"] && !isPackageUsedInFile(file, "time") {
 				continue
 			}
 
@@ -181,6 +181,26 @@ func removeUnusedImports(file *ast.File, neededImports []string) {
 
 		genDecl.Specs = keptSpecs
 	}
+}
+
+func isPackageUsedInFile(file *ast.File, pkgName string) bool {
+	used := false
+	ast.Inspect(file, func(n ast.Node) bool {
+		if used {
+			return false
+		}
+		sel, ok := n.(*ast.SelectorExpr)
+		if !ok {
+			return true
+		}
+		ident, ok := sel.X.(*ast.Ident)
+		if ok && ident.Name == pkgName {
+			used = true
+			return false
+		}
+		return true
+	})
+	return used
 }
 
 func filterImportsForFields(fields []StructField, imports []string) []string {
