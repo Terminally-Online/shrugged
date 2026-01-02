@@ -8,7 +8,6 @@ import (
 type UsersExtension struct{}
 
 type Users struct {
-	UsersExtension
 	ID              int64           `json:"id"`
 	Email           string          `json:"email"`
 	Role            UserRole        `json:"role"`
@@ -20,4 +19,5 @@ type Users struct {
 	EmailVerifiedAt *time.Time      `json:"email_verified_at,omitempty"`
 	CreatedAt       time.Time       `json:"created_at"`
 	UpdatedAt       *time.Time      `json:"updated_at,omitempty"`
+	UsersExtension
 }

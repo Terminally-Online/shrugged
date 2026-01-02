@@ -144,12 +144,6 @@ func (g *GoGenerator) generateTable(table parser.Table, outDir string) error {
 	var imports []string
 	importSet := make(map[string]bool)
 
-	fields = append(fields, StructField{
-		Name: extensionTypeName,
-		Type: "",
-		Tag:  "",
-	})
-
 	for _, col := range table.Columns {
 		goType, imp := pgTypeToGo(col.Type, col.Nullable)
 		if imp != "" && !importSet[imp] {
@@ -168,6 +162,12 @@ func (g *GoGenerator) generateTable(table parser.Table, outDir string) error {
 			Tag:  jsonTag,
 		})
 	}
+
+	fields = append(fields, StructField{
+		Name: extensionTypeName,
+		Type: "",
+		Tag:  "",
+	})
 
 	if fileExists(filePath) {
 		content, err := mergeTableFile(filePath, typeName, extensionTypeName, fields, imports)
@@ -191,14 +191,14 @@ func (g *GoGenerator) generateTable(table parser.Table, outDir string) error {
 	sb.WriteString(fmt.Sprintf("type %s struct {}\n\n", extensionTypeName))
 
 	sb.WriteString(fmt.Sprintf("type %s struct {\n", typeName))
-	sb.WriteString(fmt.Sprintf("\t%s\n", extensionTypeName))
-	for _, field := range fields[1:] {
+	for _, field := range fields[:len(fields)-1] {
 		if field.Tag != "" {
 			sb.WriteString(fmt.Sprintf("\t%s %s `%s`\n", field.Name, field.Type, field.Tag))
 		} else {
 			sb.WriteString(fmt.Sprintf("\t%s %s\n", field.Name, field.Type))
 		}
 	}
+	sb.WriteString(fmt.Sprintf("\t%s\n", extensionTypeName))
 	sb.WriteString("}\n")
 
 	return os.WriteFile(filePath, []byte(sb.String()), 0644)

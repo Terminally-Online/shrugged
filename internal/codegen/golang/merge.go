@@ -383,11 +383,13 @@ func addStructDeclWithEmbed(file *ast.File, name string, embedName string, field
 
 func buildFieldListWithEmbed(fields []StructField) *ast.FieldList {
 	var astFields []*ast.Field
+	var embedField *ast.Field
+
 	for i, f := range fields {
-		if i == 0 && f.Type == "" {
-			astFields = append(astFields, &ast.Field{
+		if i == len(fields)-1 && f.Type == "" {
+			embedField = &ast.Field{
 				Type: &ast.Ident{Name: f.Name},
-			})
+			}
 			continue
 		}
 		field := &ast.Field{
@@ -402,6 +404,11 @@ func buildFieldListWithEmbed(fields []StructField) *ast.FieldList {
 		}
 		astFields = append(astFields, field)
 	}
+
+	if embedField != nil {
+		astFields = append(astFields, embedField)
+	}
+
 	return &ast.FieldList{List: astFields}
 }
 

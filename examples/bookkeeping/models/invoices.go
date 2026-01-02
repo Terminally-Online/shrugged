@@ -7,7 +7,6 @@ import (
 type InvoicesExtension struct{}
 
 type Invoices struct {
-	InvoicesExtension
 	ID       int64         `json:"id"`
 	UserID   int64         `json:"user_id"`
 	Amount   MoneyAmount   `json:"amount"`
@@ -15,4 +14,5 @@ type Invoices struct {
 	IssuedAt time.Time     `json:"issued_at"`
 	DueAt    time.Time     `json:"due_at"`
 	PaidAt   *time.Time    `json:"paid_at,omitempty"`
+	InvoicesExtension
 }

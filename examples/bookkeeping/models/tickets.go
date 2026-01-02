@@ -7,7 +7,6 @@ import (
 type TicketsExtension struct{}
 
 type Tickets struct {
-	TicketsExtension
 	ID          int64         `json:"id"`
 	UserID      int64         `json:"user_id"`
 	AssigneeID  *int64        `json:"assignee_id,omitempty"`
@@ -20,4 +19,5 @@ type Tickets struct {
 	CreatedAt   time.Time     `json:"created_at"`
 	UpdatedAt   *time.Time    `json:"updated_at,omitempty"`
 	ResolvedAt  *time.Time    `json:"resolved_at,omitempty"`
+	TicketsExtension
 }

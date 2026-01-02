@@ -7,7 +7,6 @@ import (
 type PostsExtension struct{}
 
 type Posts struct {
-	PostsExtension
 	ID          int64      `json:"id"`
 	UserID      int64      `json:"user_id"`
 	Title       string     `json:"title"`
@@ -17,4 +16,5 @@ type Posts struct {
 	PublishedAt *time.Time `json:"published_at,omitempty"`
 	CreatedAt   time.Time  `json:"created_at"`
 	UpdatedAt   *time.Time `json:"updated_at,omitempty"`
+	PostsExtension
 }

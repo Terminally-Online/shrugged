@@ -7,7 +7,6 @@ type OrdersExtension struct {
 }
 
 type Orders struct {
-	OrdersExtension
 	ID                int64      `json:"id"`
 	CustomerID        int64      `json:"customer_id"`
 	ShippingAddressID *int64     `json:"shipping_address_id,omitempty"`
@@ -19,4 +18,5 @@ type Orders struct {
 	Notes             *string    `json:"notes,omitempty"`
 	CreatedAt         time.Time  `json:"created_at"`
 	UpdatedAt         *time.Time `json:"updated_at,omitempty"`
+	OrdersExtension
 }

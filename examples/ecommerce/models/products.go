@@ -13,7 +13,6 @@ type ProductsExtension struct {
 }
 
 type Products struct {
-	ProductsExtension
 	ID              int64      `json:"id"`
 	CategoryID      *int64     `json:"category_id,omitempty"`
 	Sku             string     `json:"sku"`
@@ -26,6 +25,7 @@ type Products struct {
 	Tags            []string   `json:"tags,omitempty"`
 	CreatedAt       time.Time  `json:"created_at"`
 	UpdatedAt       *time.Time `json:"updated_at,omitempty"`
+	ProductsExtension
 }
 
 type ProductMetadata struct {

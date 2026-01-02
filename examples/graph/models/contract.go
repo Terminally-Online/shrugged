@@ -7,7 +7,6 @@ type ContractExtension struct {
 }
 
 type Contract struct {
-	ContractExtension
 	ChainID         int64  `json:"chain_id"`
 	ContractAddress string `json:"contract_address"`
 	TokenID         string `json:"token_id"`
@@ -20,4 +19,5 @@ type Contract struct {
 	Description     string `json:"description"`
 	Verified        bool   `json:"verified"`
 	Color           string `json:"color"`
+	ContractExtension
 }
