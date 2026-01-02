@@ -88,6 +88,8 @@ func mergeTableFile(filePath string, structName string, extensionName string, fi
 		}
 	}
 
+	existingTags := extractExistingTags(file, structName)
+
 	var filteredFields []StructField
 	for _, f := range fields {
 		if f.Type == "" {
@@ -95,6 +97,9 @@ func mergeTableFile(filePath string, structName string, extensionName string, fi
 			continue
 		}
 		if !coveredFields[f.Name] {
+			if existingTag, ok := existingTags[f.Name]; ok {
+				f.Tag = existingTag
+			}
 			filteredFields = append(filteredFields, f)
 		}
 	}
@@ -545,6 +550,39 @@ func insertDecl(decls []ast.Decl, pos int, decl ast.Decl) []ast.Decl {
 	decls = append(decls[:pos+1], decls[pos:]...)
 	decls[pos] = decl
 	return decls
+}
+
+func extractExistingTags(file *ast.File, structName string) map[string]string {
+	result := make(map[string]string)
+
+	ast.Inspect(file, func(n ast.Node) bool {
+		typeSpec, ok := n.(*ast.TypeSpec)
+		if !ok {
+			return true
+		}
+
+		if typeSpec.Name.Name != structName {
+			return true
+		}
+
+		structType, ok := typeSpec.Type.(*ast.StructType)
+		if !ok {
+			return true
+		}
+
+		for _, field := range structType.Fields.List {
+			if len(field.Names) == 0 {
+				continue
+			}
+			if field.Tag != nil {
+				result[field.Names[0].Name] = strings.Trim(field.Tag.Value, "`")
+			}
+		}
+
+		return false
+	})
+
+	return result
 }
 
 func ExtractExtensionFields(filePath string) (map[string][]StructField, error) {
