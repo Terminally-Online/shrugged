@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -104,7 +105,8 @@ func buildCurrentState(ctx context.Context, container *docker.Container, migrati
 	}
 
 	for _, entry := range entries {
-		if entry.IsDir() || filepath.Ext(entry.Name()) != ".sql" {
+		name := entry.Name()
+		if entry.IsDir() || filepath.Ext(name) != ".sql" || strings.HasSuffix(name, ".down.sql") {
 			continue
 		}
 
@@ -126,7 +128,8 @@ func buildCurrentState(ctx context.Context, container *docker.Container, migrati
 func countSQLFiles(entries []os.DirEntry) int {
 	count := 0
 	for _, e := range entries {
-		if !e.IsDir() && filepath.Ext(e.Name()) == ".sql" {
+		name := e.Name()
+		if !e.IsDir() && filepath.Ext(name) == ".sql" && !strings.HasSuffix(name, ".down.sql") {
 			count++
 		}
 	}
