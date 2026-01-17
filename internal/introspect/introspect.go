@@ -1492,6 +1492,8 @@ func loadComments(ctx context.Context, conn *pgx.Conn, schema *parser.Schema) er
 }
 
 func loadRoles(ctx context.Context, conn *pgx.Conn, schema *parser.Schema) error {
+	connUser := conn.Config().User
+
 	rows, err := conn.Query(ctx, `
 		SELECT
 			r.rolname,
@@ -1509,12 +1511,12 @@ func loadRoles(ctx context.Context, conn *pgx.Conn, schema *parser.Schema) error
 		LEFT JOIN pg_auth_members am ON r.oid = am.member
 		LEFT JOIN pg_roles m ON am.roleid = m.oid
 		WHERE r.rolname NOT LIKE 'pg_%'
-		AND r.rolname NOT IN ('postgres')
+		AND r.rolname NOT IN ('postgres', $1)
 		GROUP BY r.oid, r.rolname, r.rolsuper, r.rolcreatedb, r.rolcreaterole,
 				 r.rolinherit, r.rolcanlogin, r.rolreplication, r.rolbypassrls,
 				 r.rolconnlimit, r.rolvaliduntil
 		ORDER BY r.rolname
-	`)
+	`, connUser)
 	if err != nil {
 		return fmt.Errorf("failed to query roles: %w", err)
 	}
@@ -1550,6 +1552,8 @@ func loadRoles(ctx context.Context, conn *pgx.Conn, schema *parser.Schema) error
 }
 
 func loadRoleGrants(ctx context.Context, conn *pgx.Conn, schema *parser.Schema) error {
+	connUser := conn.Config().User
+
 	rows, err := conn.Query(ctx, `
 		SELECT
 			'TABLE' AS object_type,
@@ -1561,6 +1565,7 @@ func loadRoleGrants(ctx context.Context, conn *pgx.Conn, schema *parser.Schema) 
 		FROM information_schema.table_privileges
 		WHERE table_schema NOT IN ('pg_catalog', 'information_schema')
 		AND grantor != grantee
+		AND grantee != $1
 
 		UNION ALL
 
@@ -1574,6 +1579,7 @@ func loadRoleGrants(ctx context.Context, conn *pgx.Conn, schema *parser.Schema) 
 		FROM information_schema.routine_privileges
 		WHERE routine_schema NOT IN ('pg_catalog', 'information_schema')
 		AND grantor != grantee
+		AND grantee != $1
 
 		UNION ALL
 
@@ -1587,9 +1593,10 @@ func loadRoleGrants(ctx context.Context, conn *pgx.Conn, schema *parser.Schema) 
 		FROM information_schema.udt_privileges
 		WHERE udt_schema NOT IN ('pg_catalog', 'information_schema')
 		AND grantor != grantee
+		AND grantee != $1
 
 		ORDER BY table_schema, table_name, grantee, privilege_type
-	`)
+	`, connUser)
 	if err != nil {
 		return fmt.Errorf("failed to query role grants: %w", err)
 	}
@@ -1615,6 +1622,8 @@ func loadRoleGrants(ctx context.Context, conn *pgx.Conn, schema *parser.Schema) 
 }
 
 func loadDefaultPrivileges(ctx context.Context, conn *pgx.Conn, schema *parser.Schema) error {
+	connUser := conn.Config().User
+
 	rows, err := conn.Query(ctx, `
 		SELECT
 			n.nspname AS schema_name,
@@ -1648,9 +1657,11 @@ func loadDefaultPrivileges(ctx context.Context, conn *pgx.Conn, schema *parser.S
 		CROSS JOIN LATERAL aclexplode(d.defaclacl) a
 		JOIN pg_roles g ON a.grantee = g.oid
 		WHERE n.nspname NOT IN ('pg_catalog', 'information_schema', 'pg_toast')
+		AND r.rolname != $1
+		AND g.rolname != $1
 		GROUP BY n.nspname, r.rolname, d.defaclobjtype, g.rolname
 		ORDER BY n.nspname, r.rolname, object_type, g.rolname
-	`)
+	`, connUser)
 	if err != nil {
 		return fmt.Errorf("failed to query default privileges: %w", err)
 	}
