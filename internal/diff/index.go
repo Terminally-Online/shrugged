@@ -81,6 +81,14 @@ func compareIndexes(current, desired []parser.Index) []Change {
 }
 
 func generateCreateIndex(i parser.Index) string {
+	if i.Definition != "" {
+		def := strings.TrimSpace(i.Definition)
+		if !strings.HasSuffix(def, ";") {
+			def += ";"
+		}
+		return def
+	}
+
 	var sb strings.Builder
 
 	sb.WriteString("CREATE ")
