@@ -251,6 +251,26 @@ func TestGenerateCreateIndex(t *testing.T) {
 			},
 			want: []string{"CREATE INDEX"},
 		},
+		{
+			name: "expression index uses Definition field",
+			index: parser.Index{
+				Name:       "idx_address_attribute_owner",
+				Table:      "address_attribute",
+				Columns:    []string{"name"},
+				Definition: "CREATE INDEX idx_address_attribute_owner ON public.address_attribute USING btree (name, lower(value)) WHERE ((name = 'owner'::text) AND (master_address = ''::text))",
+			},
+			want: []string{"CREATE INDEX", "idx_address_attribute_owner", "lower(value)", "WHERE"},
+		},
+		{
+			name: "expression index with Definition preserves UPPER function",
+			index: parser.Index{
+				Name:       "idx_upper",
+				Table:      "users",
+				Columns:    []string{},
+				Definition: "CREATE INDEX idx_upper ON public.users USING btree (UPPER(email))",
+			},
+			want: []string{"CREATE INDEX", "idx_upper", "UPPER(email)"},
+		},
 	}
 
 	for _, tt := range tests {
