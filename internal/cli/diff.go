@@ -13,6 +13,7 @@ import (
 	"github.com/terminally-online/shrugged/internal/docker"
 	"github.com/terminally-online/shrugged/internal/introspect"
 	"github.com/terminally-online/shrugged/internal/parser"
+	"github.com/terminally-online/shrugged/internal/ui"
 )
 
 var diffCmd = &cobra.Command{
@@ -36,50 +37,59 @@ This spins up a temporary Postgres container, applies all migrations to get the
 			Database: "shrugged",
 		}
 
-		fmt.Println("Starting Postgres container...")
+		s := ui.NewSpinner()
+		s.Start("Starting Postgres container...")
 		container, err := docker.StartPostgres(ctx, dockerCfg)
 		if err != nil {
+			s.Stop()
 			return fmt.Errorf("failed to start postgres: %w", err)
 		}
 		defer func() {
-			fmt.Println("Stopping container...")
+			s.Start("Stopping container...")
 			_ = docker.StopContainer(context.Background(), container.ID)
+			s.Stop()
 		}()
 
-		currentSchema, err := buildCurrentState(ctx, container, migrationsDir)
+		currentSchema, err := buildCurrentState(ctx, s, container, migrationsDir)
 		if err != nil {
+			s.Stop()
 			return err
 		}
 
 		schemaSQL, err := parser.LoadFile(schemaFile)
 		if err != nil {
+			s.Stop()
 			return fmt.Errorf("failed to load schema file: %w", err)
 		}
 
-		fmt.Println("Resetting database for schema application...")
+		s.Update("Applying schema...")
 		if err := docker.ResetDatabase(ctx, container); err != nil {
+			s.Stop()
 			return fmt.Errorf("failed to reset database: %w", err)
 		}
 
-		fmt.Println("Applying schema file...")
 		if err := docker.ExecuteSQL(ctx, container, schemaSQL); err != nil {
+			s.Stop()
 			return fmt.Errorf("failed to apply schema: %w", err)
 		}
 
-		fmt.Println("Introspecting desired state...")
+		s.Update("Introspecting desired state...")
 		desiredSchema, err := introspect.Database(ctx, container.ConnectionString())
 		if err != nil {
+			s.Stop()
 			return fmt.Errorf("failed to introspect desired state: %w", err)
 		}
+
+		s.Stop()
 
 		changes := diff.Compare(currentSchema, desiredSchema)
 
 		if len(changes) == 0 {
-			fmt.Println("\nNo changes detected. Schema is in sync with migrations.")
+			fmt.Println("No changes detected. Schema is in sync with migrations.")
 			return nil
 		}
 
-		fmt.Printf("\nFound %d change(s):\n\n", len(changes))
+		fmt.Printf("Found %d change(s):\n\n", len(changes))
 		for _, change := range changes {
 			fmt.Println(change.SQL())
 			fmt.Println()
@@ -89,11 +99,10 @@ This spins up a temporary Postgres container, applies all migrations to get the
 	},
 }
 
-func buildCurrentState(ctx context.Context, container *docker.Container, migrationsDir string) (*parser.Schema, error) {
+func buildCurrentState(ctx context.Context, s *ui.Spinner, container *docker.Container, migrationsDir string) (*parser.Schema, error) {
 	entries, err := os.ReadDir(migrationsDir)
 	if err != nil {
 		if os.IsNotExist(err) {
-			fmt.Println("No migrations directory found, starting from empty database...")
 			return &parser.Schema{}, nil
 		}
 		return nil, fmt.Errorf("failed to read migrations directory: %w", err)
@@ -101,7 +110,7 @@ func buildCurrentState(ctx context.Context, container *docker.Container, migrati
 
 	sqlCount := countSQLFiles(entries)
 	if sqlCount > 0 {
-		fmt.Printf("Applying %d migration(s)...\n", sqlCount)
+		s.Update(fmt.Sprintf("Applying %d migration(s)...", sqlCount))
 	}
 
 	for _, entry := range entries {
@@ -121,7 +130,7 @@ func buildCurrentState(ctx context.Context, container *docker.Container, migrati
 		}
 	}
 
-	fmt.Println("Introspecting current state...")
+	s.Update("Introspecting current state...")
 	return introspect.Database(ctx, container.ConnectionString())
 }
 

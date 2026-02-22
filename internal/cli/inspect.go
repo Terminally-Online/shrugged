@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/terminally-online/shrugged/internal/introspect"
+	"github.com/terminally-online/shrugged/internal/ui"
 )
 
 var (
@@ -25,11 +26,14 @@ var inspectCmd = &cobra.Command{
 			return err
 		}
 
-		fmt.Println("Connecting to database...")
+		s := ui.NewSpinner()
+		s.Start("Introspecting database...")
 		schema, err := introspect.Database(ctx, dbURL)
 		if err != nil {
+			s.Stop()
 			return fmt.Errorf("failed to introspect database: %w", err)
 		}
+		s.Stop()
 
 		sql := schema.ToSQL()
 

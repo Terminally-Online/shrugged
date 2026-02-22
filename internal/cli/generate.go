@@ -14,6 +14,7 @@ import (
 	"github.com/terminally-online/shrugged/internal/docker"
 	"github.com/terminally-online/shrugged/internal/introspect"
 	"github.com/terminally-online/shrugged/internal/parser"
+	"github.com/terminally-online/shrugged/internal/ui"
 )
 
 var generateCmd = &cobra.Command{
@@ -47,6 +48,8 @@ Example:
 		dbURL, err := cfg.GetDatabaseURL(&flags)
 		useEphemeral := err != nil || dbURL == ""
 
+		s := ui.NewSpinner()
+
 		var container *docker.Container
 		if useEphemeral {
 			schemaFile := cfg.GetSchema(&flags)
@@ -67,32 +70,37 @@ Example:
 				Database: "shrugged",
 			}
 
-			fmt.Println("Starting Postgres container...")
+			s.Start("Starting Postgres container...")
 			container, err = docker.StartPostgres(ctx, dockerCfg)
 			if err != nil {
+				s.Stop()
 				return fmt.Errorf("failed to start postgres: %w", err)
 			}
 			defer func() {
-				fmt.Println("Stopping container...")
+				s.Start("Stopping container...")
 				_ = docker.StopContainer(context.Background(), container.ID)
+				s.Stop()
 			}()
 
-			fmt.Println("Applying schema...")
+			s.Update("Applying schema...")
 			if err := docker.ExecuteSQL(ctx, container, schemaSQL); err != nil {
+				s.Stop()
 				return fmt.Errorf("failed to apply schema: %w", err)
 			}
 
 			dbURL = container.ConnectionString()
 		}
 
-		fmt.Println("Connecting to database...")
+		s.Start("Introspecting database...")
 		schema, err := introspect.Database(ctx, dbURL)
 		if err != nil {
+			s.Stop()
 			return fmt.Errorf("failed to introspect database: %w", err)
 		}
 
-		fmt.Printf("Generating %s models to %s...\n", language, outDir)
+		s.Update(fmt.Sprintf("Generating %s models...", language))
 		if err := generator.Generate(schema, outDir); err != nil {
+			s.Stop()
 			return fmt.Errorf("failed to generate: %w", err)
 		}
 
@@ -100,31 +108,32 @@ Example:
 		enumCount := len(schema.Enums)
 		compositeCount := len(schema.CompositeTypes)
 
-		fmt.Printf("Generated %d tables, %d enums, %d composite types\n", tableCount, enumCount, compositeCount)
-
 		queriesPath := cfg.GetQueries(&flags)
 		if queriesPath != "" {
 			queriesOutDir := cfg.GetQueriesOut(&flags)
 
-			fmt.Printf("Parsing queries from %s...\n", queriesPath)
+			s.Update("Parsing queries...")
 			queryFiles, err := parser.ParseQueries(queriesPath)
 			if err != nil {
+				s.Stop()
 				return fmt.Errorf("failed to parse queries: %w", err)
 			}
 
 			queries := parser.GetAllQueries(queryFiles)
 			if len(queries) == 0 {
-				fmt.Printf("No queries found\n")
+				s.Stop()
+				fmt.Println("No queries found.")
 			} else {
-				fmt.Printf("Found %d queries, introspecting types...\n", len(queries))
+				s.Update(fmt.Sprintf("Introspecting %d queries...", len(queries)))
 				queries, err = introspect.Queries(ctx, dbURL, queries, schema)
 				if err != nil {
+					s.Stop()
 					return fmt.Errorf("failed to introspect queries: %w", err)
 				}
 
 				modelsPackage := determineModelsPackage(outDir)
 				clean := cfg.GetClean(&flags)
-				fmt.Printf("Generating query bindings to %s...\n", queriesOutDir)
+				s.Update("Generating query bindings...")
 				removed, err := generator.GenerateQueries(codegen.QueryGenOptions{
 					Queries:       queries,
 					OutDir:        queriesOutDir,
@@ -134,15 +143,22 @@ Example:
 					Clean:         clean,
 				})
 				if err != nil {
+					s.Stop()
 					return fmt.Errorf("failed to generate queries: %w", err)
 				}
 
-				fmt.Printf("Generated %d query functions\n", len(queries))
+				s.Stop()
+				fmt.Printf("Generated %d tables, %d enums, %d composite types, %d query functions\n", tableCount, enumCount, compositeCount, len(queries))
 				if len(removed) > 0 {
 					fmt.Printf("Removed %d orphaned files\n", len(removed))
 				}
+				return nil
 			}
+		} else {
+			s.Stop()
 		}
+
+		fmt.Printf("Generated %d tables, %d enums, %d composite types\n", tableCount, enumCount, compositeCount)
 
 		return nil
 	},

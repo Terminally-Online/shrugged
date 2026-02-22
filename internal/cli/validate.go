@@ -9,6 +9,7 @@ import (
 	"github.com/terminally-online/shrugged/internal/docker"
 	"github.com/terminally-online/shrugged/internal/introspect"
 	"github.com/terminally-online/shrugged/internal/parser"
+	"github.com/terminally-online/shrugged/internal/ui"
 )
 
 var validateCmd = &cobra.Command{
@@ -36,30 +37,37 @@ the configured Postgres version.`,
 			Database: "shrugged",
 		}
 
-		fmt.Printf("Starting Postgres %s container...\n", postgresVersion)
+		s := ui.NewSpinner()
+		s.Start("Validating schema...")
 		container, err := docker.StartPostgres(ctx, dockerCfg)
 		if err != nil {
+			s.Stop()
 			return fmt.Errorf("failed to start postgres: %w", err)
 		}
 		defer func() {
-			fmt.Println("Stopping container...")
+			s.Start("Stopping container...")
 			_ = docker.StopContainer(context.Background(), container.ID)
+			s.Stop()
 		}()
 
-		fmt.Println("Applying schema file...")
+		s.Update("Applying schema...")
 		if err := docker.ExecuteSQL(ctx, container, schemaSQL); err != nil {
+			s.Stop()
 			return fmt.Errorf("schema validation failed: %w", err)
 		}
 
-		fmt.Println("Introspecting schema...")
+		s.Update("Introspecting schema...")
 		schema, err := introspect.Database(ctx, container.ConnectionString())
 		if err != nil {
+			s.Stop()
 			return fmt.Errorf("failed to introspect schema: %w", err)
 		}
 
+		s.Stop()
+
 		warnings := schema.Lint()
 		if len(warnings) > 0 {
-			fmt.Println("\nWarnings:")
+			fmt.Println("Warnings:")
 			for _, w := range warnings {
 				fmt.Printf("  - %s\n", w)
 			}

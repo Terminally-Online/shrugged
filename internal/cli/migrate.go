@@ -14,6 +14,7 @@ import (
 	"github.com/terminally-online/shrugged/internal/introspect"
 	"github.com/terminally-online/shrugged/internal/migrate"
 	"github.com/terminally-online/shrugged/internal/parser"
+	"github.com/terminally-online/shrugged/internal/ui"
 )
 
 var migrateCmd = &cobra.Command{
@@ -37,46 +38,55 @@ then diffs against the desired schema to produce a new migration.`,
 			Database: "shrugged",
 		}
 
-		fmt.Println("Starting Postgres container...")
+		s := ui.NewSpinner()
+		s.Start("Starting Postgres container...")
 		container, err := docker.StartPostgres(ctx, dockerCfg)
 		if err != nil {
+			s.Stop()
 			return fmt.Errorf("failed to start postgres: %w", err)
 		}
 		defer func() {
-			fmt.Println("Stopping container...")
+			s.Start("Stopping container...")
 			_ = docker.StopContainer(context.Background(), container.ID)
+			s.Stop()
 		}()
 
-		currentSchema, err := buildCurrentState(ctx, container, migrationsDir)
+		currentSchema, err := buildCurrentState(ctx, s, container, migrationsDir)
 		if err != nil {
+			s.Stop()
 			return err
 		}
 
 		schemaSQL, err := parser.LoadFile(schemaFile)
 		if err != nil {
+			s.Stop()
 			return fmt.Errorf("failed to load schema file: %w", err)
 		}
 
-		fmt.Println("Resetting database for schema application...")
+		s.Update("Applying schema...")
 		if err := docker.ResetDatabase(ctx, container); err != nil {
+			s.Stop()
 			return fmt.Errorf("failed to reset database: %w", err)
 		}
 
-		fmt.Println("Applying schema file...")
 		if err := docker.ExecuteSQL(ctx, container, schemaSQL); err != nil {
+			s.Stop()
 			return fmt.Errorf("failed to apply schema: %w", err)
 		}
 
-		fmt.Println("Introspecting desired state...")
+		s.Update("Introspecting desired state...")
 		desiredSchema, err := introspect.Database(ctx, container.ConnectionString())
 		if err != nil {
+			s.Stop()
 			return fmt.Errorf("failed to introspect desired state: %w", err)
 		}
+
+		s.Stop()
 
 		changes := diff.Compare(currentSchema, desiredSchema)
 
 		if len(changes) == 0 {
-			fmt.Println("\nNo changes detected. Nothing to migrate.")
+			fmt.Println("No changes detected. Nothing to migrate.")
 			return nil
 		}
 
@@ -122,7 +132,7 @@ then diffs against the desired schema to produce a new migration.`,
 			return fmt.Errorf("failed to update sum file: %w", err)
 		}
 
-		fmt.Printf("\nCreated migration: %s\n", upFilename)
+		fmt.Printf("Created migration: %s\n", upFilename)
 		fmt.Printf("Created rollback:  %s\n", downFilename)
 		fmt.Printf("Contains %d change(s)\n", len(changes))
 		if hasIrreversible {
