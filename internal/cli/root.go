@@ -3,17 +3,20 @@ package cli
 import (
 	"fmt"
 	"os"
+	"sync"
 
 	"github.com/spf13/cobra"
 
 	"github.com/terminally-online/shrugged/internal/config"
+	"github.com/terminally-online/shrugged/internal/updater"
 )
 
 var (
-	cfgFile string
-	cfg     *config.Config
-	flags   config.Flags
-	version = "dev"
+	cfgFile       string
+	cfg           *config.Config
+	flags         config.Flags
+	version       = "dev"
+	updateCheckWg sync.WaitGroup
 )
 
 var rootCmd = &cobra.Command{
@@ -24,7 +27,7 @@ automatic schema diffing and migration generation.
 
 No cloud dependencies. No paywalled features. Just migrations.`,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-		if cmd.Name() == "help" || cmd.Name() == "version" {
+		if cmd.Name() == "help" || cmd.Name() == "version" || cmd.Name() == "update" {
 			return nil
 		}
 
@@ -37,6 +40,17 @@ No cloud dependencies. No paywalled features. Just migrations.`,
 				return fmt.Errorf("failed to load config: %w", err)
 			}
 		}
+
+		updateCheckWg.Add(1)
+		go func() {
+			defer updateCheckWg.Done()
+			latest, outdated, err := updater.CheckForUpdate(version)
+			if err != nil || !outdated {
+				return
+			}
+			fmt.Fprintf(os.Stderr, "\nA new version of shrugged is available: %s (you have %s)\nRun 'shrugged update' to upgrade.\n\n", latest, version)
+		}()
+
 		return nil
 	},
 }
@@ -65,6 +79,7 @@ func init() {
 	rootCmd.AddCommand(statusCmd)
 	rootCmd.AddCommand(generateCmd)
 	rootCmd.AddCommand(versionCmd)
+	rootCmd.AddCommand(updateCmd)
 }
 
 func SetVersion(v string) {
@@ -72,7 +87,9 @@ func SetVersion(v string) {
 }
 
 func Execute() error {
-	return rootCmd.Execute()
+	err := rootCmd.Execute()
+	updateCheckWg.Wait()
+	return err
 }
 
 func Root() *cobra.Command {
