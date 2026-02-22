@@ -6,12 +6,12 @@ import (
 )
 
 type GetPostsParams struct {
-	ID *int64 `json:"id,omitempty"`
-	UserID *int64 `json:"user_id,omitempty"`
-	Published *bool `json:"published,omitempty"`
+	ID        *int64 `json:"id,omitempty"`
+	UserID    *int64 `json:"user_id,omitempty"`
+	Published *bool  `json:"published,omitempty"`
 }
 
-const get_postsSQL = `
+const getPostsSQL = `
 SELECT id, user_id, title, slug, content, published, published_at, created_at, updated_at
 FROM posts
 WHERE (id = $1 OR $1 IS NULL)
@@ -20,7 +20,7 @@ WHERE (id = $1 OR $1 IS NULL)
 ORDER BY created_at DESC;`
 
 func (q *Queries) GetPosts(ctx context.Context, params GetPostsParams) ([]models.Posts, error) {
-	rows, err := q.db.Query(ctx, get_postsSQL, params.ID, params.UserID, params.Published)
+	rows, err := q.db.Query(ctx, getPostsSQL, params.ID, params.UserID, params.Published)
 	if err != nil {
 		return nil, err
 	}

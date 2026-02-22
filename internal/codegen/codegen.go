@@ -6,8 +6,18 @@ import (
 	"github.com/terminally-online/shrugged/internal/parser"
 )
 
+type QueryGenOptions struct {
+	Queries       []parser.Query
+	OutDir        string
+	ModelsPackage string
+	ModelsDir     string
+	Schema        *parser.Schema
+	Clean         bool
+}
+
 type Generator interface {
 	Generate(schema *parser.Schema, outDir string) error
+	GenerateQueries(opts QueryGenOptions) (removed []string, err error)
 	Language() string
 }
 

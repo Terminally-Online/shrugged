@@ -86,12 +86,7 @@ func introspectQuery(ctx context.Context, conn *pgx.Conn, query parser.Query, sc
 		if i < len(sd.ParamOIDs) {
 			oid := sd.ParamOIDs[i]
 			pgType := resolveTypeName(oid, typeMap)
-			goType, imp := pgTypeToGo(pgType, false, schema)
 			query.Parameters[i].Type = pgType
-			query.Parameters[i].GoType = goType
-			if imp != "" {
-				query.Parameters[i].Import = imp
-			}
 		}
 	}
 
@@ -103,24 +98,17 @@ func introspectQuery(ctx context.Context, conn *pgx.Conn, query parser.Query, sc
 		nullable := true
 
 		if jsonAggInfo, ok := jsonAggColumns[field.Name]; ok {
-			goType, imp := pgTypeToGo(pgType, false, schema)
 			query.Columns[i] = parser.QueryColumn{
-				Name:           field.Name,
-				Type:           pgType,
-				GoType:         goType,
-				Import:         imp,
-				Nullable:       nullable,
-				IsJSONAgg:      true,
-				JSONElemType:   jsonAggInfo.tableName,
-				JSONElemGoType: jsonAggInfo.goType,
+				Name:         field.Name,
+				Type:         pgType,
+				Nullable:     nullable,
+				IsJSONAgg:    true,
+				JSONElemType: jsonAggInfo.tableName,
 			}
 		} else {
-			goType, imp := pgTypeToGo(pgType, nullable, schema)
 			query.Columns[i] = parser.QueryColumn{
 				Name:     field.Name,
 				Type:     pgType,
-				GoType:   goType,
-				Import:   imp,
 				Nullable: nullable,
 			}
 		}
@@ -144,12 +132,7 @@ func introspectExecQuery(ctx context.Context, conn *pgx.Conn, query parser.Query
 		if i < len(sd.ParamOIDs) {
 			oid := sd.ParamOIDs[i]
 			pgType := resolveTypeName(oid, typeMap)
-			goType, imp := pgTypeToGo(pgType, false, schema)
 			query.Parameters[i].Type = pgType
-			query.Parameters[i].GoType = goType
-			if imp != "" {
-				query.Parameters[i].Import = imp
-			}
 		}
 	}
 
@@ -168,7 +151,6 @@ func resolveTypeName(oid uint32, typeMap map[uint32]string) string {
 
 type jsonAggInfo struct {
 	tableName string
-	goType    string
 }
 
 func detectJSONAggColumns(sql string, schema *parser.Schema) map[string]jsonAggInfo {
@@ -188,19 +170,18 @@ func detectJSONAggColumns(sql string, schema *parser.Schema) map[string]jsonAggI
 					tableName = actual
 				}
 
-				var goType string
+				tableExists := false
 				for _, t := range schema.Tables {
 					if t.Name == tableName {
-						goType = toPascalCase(tableName)
+						tableExists = true
 						break
 					}
 				}
 
 				columnName := extractColumnAlias(line, match[0])
-				if columnName != "" && goType != "" {
+				if columnName != "" && tableExists {
 					result[columnName] = jsonAggInfo{
 						tableName: tableName,
-						goType:    goType,
 					}
 				}
 			}
@@ -340,114 +321,4 @@ func oidToTypeName(oid uint32) string {
 	default:
 		return "unknown"
 	}
-}
-
-func pgTypeToGo(pgType string, nullable bool, schema *parser.Schema) (goType string, importPath string) {
-	pgType = strings.ToLower(pgType)
-
-	if strings.HasSuffix(pgType, "[]") {
-		elemType := strings.TrimSuffix(pgType, "[]")
-		elemGoType, imp := pgTypeToGo(elemType, false, schema)
-		return "[]" + elemGoType, imp
-	}
-
-	if strings.HasPrefix(pgType, "character varying") {
-		pgType = "character varying"
-	}
-	if strings.HasPrefix(pgType, "numeric") {
-		pgType = "numeric"
-	}
-
-	var baseType string
-	switch pgType {
-	case "boolean", "bool":
-		baseType = "bool"
-	case "smallint", "int2":
-		baseType = "int16"
-	case "integer", "int", "int4":
-		baseType = "int32"
-	case "bigint", "int8":
-		baseType = "int64"
-	case "real", "float4":
-		baseType = "float32"
-	case "double precision", "float8":
-		baseType = "float64"
-	case "text", "character varying", "varchar", "character", "char", "name":
-		baseType = "string"
-	case "bytea":
-		return "[]byte", ""
-	case "uuid":
-		baseType = "string"
-	case "json", "jsonb":
-		return "json.RawMessage", "encoding/json"
-	case "timestamp", "timestamp without time zone", "timestamp with time zone", "timestamptz", "date", "time", "time with time zone":
-		if nullable {
-			return "*time.Time", "time"
-		}
-		return "time.Time", "time"
-	case "interval":
-		baseType = "string"
-	case "numeric", "decimal", "money":
-		baseType = "string"
-	case "inet", "cidr", "macaddr":
-		baseType = "string"
-	case "oid":
-		baseType = "uint32"
-	case "unknown":
-		baseType = "interface{}"
-	default:
-		if schema != nil {
-			for _, e := range schema.Enums {
-				if strings.ToLower(e.Name) == pgType {
-					baseType = toPascalCase(e.Name)
-					goto done
-				}
-			}
-			for _, c := range schema.CompositeTypes {
-				if strings.ToLower(c.Name) == pgType {
-					baseType = toPascalCase(c.Name)
-					goto done
-				}
-			}
-		}
-		baseType = toPascalCase(pgType)
-	}
-
-done:
-	if nullable && baseType != "interface{}" && !strings.HasPrefix(baseType, "[]") {
-		return "*" + baseType, importPath
-	}
-	return baseType, importPath
-}
-
-func toPascalCase(s string) string {
-	parts := strings.FieldsFunc(s, func(r rune) bool {
-		return r == '_' || r == '-' || r == ' '
-	})
-
-	var result strings.Builder
-	for _, part := range parts {
-		if len(part) == 0 {
-			continue
-		}
-		upper := strings.ToUpper(part)
-		if isCommonInitialism(upper) {
-			result.WriteString(upper)
-		} else {
-			result.WriteString(strings.ToUpper(string(part[0])))
-			result.WriteString(strings.ToLower(part[1:]))
-		}
-	}
-	return result.String()
-}
-
-func isCommonInitialism(s string) bool {
-	initialisms := map[string]bool{
-		"ID": true, "URL": true, "API": true, "HTTP": true, "HTTPS": true,
-		"JSON": true, "XML": true, "UUID": true, "SQL": true, "SSH": true,
-		"TCP": true, "UDP": true, "IP": true, "HTML": true, "CSS": true,
-		"DNS": true, "RPC": true, "TLS": true, "SSL": true, "EOF": true,
-		"ASCII": true, "CPU": true, "RAM": true, "OS": true,
-	}
-	return initialisms[s]
 }

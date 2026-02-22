@@ -5,7 +5,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"unicode"
 
 	"github.com/terminally-online/shrugged/internal/codegen"
 	"github.com/terminally-online/shrugged/internal/parser"
@@ -22,7 +21,7 @@ func (g *GoGenerator) Language() string {
 }
 
 func (g *GoGenerator) Generate(schema *parser.Schema, outDir string) error {
-	if err := os.MkdirAll(outDir, 0755); err != nil {
+	if err := os.MkdirAll(outDir, 0o755); err != nil {
 		return fmt.Errorf("failed to create output directory: %w", err)
 	}
 
@@ -50,6 +49,10 @@ func (g *GoGenerator) Generate(schema *parser.Schema, outDir string) error {
 	return nil
 }
 
+func (g *GoGenerator) GenerateQueries(opts codegen.QueryGenOptions) ([]string, error) {
+	return generateQueries(opts.Queries, opts.OutDir, opts.ModelsPackage, opts.ModelsDir, opts.Schema, opts.Clean)
+}
+
 func (g *GoGenerator) generateEnum(enum parser.Enum, outDir string) error {
 	typeName := toPascalCase(enum.Name)
 	fileName := toSnakeCase(enum.Name) + ".go"
@@ -68,21 +71,21 @@ func (g *GoGenerator) generateEnum(enum parser.Enum, outDir string) error {
 		if err != nil {
 			return fmt.Errorf("failed to merge enum file: %w", err)
 		}
-		return os.WriteFile(filePath, content, 0644)
+		return os.WriteFile(filePath, content, 0o644)
 	}
 
 	var sb strings.Builder
 	sb.WriteString("package models\n\n")
-	sb.WriteString(fmt.Sprintf("type %s string\n\n", typeName))
+	fmt.Fprintf(&sb, "type %s string\n\n", typeName)
 	sb.WriteString("const (\n")
 
 	for _, v := range values {
-		sb.WriteString(fmt.Sprintf("\t%s %s = %q\n", v.Name, typeName, v.Value))
+		fmt.Fprintf(&sb, "\t%s %s = %q\n", v.Name, typeName, v.Value)
 	}
 
 	sb.WriteString(")\n")
 
-	return os.WriteFile(filePath, []byte(sb.String()), 0644)
+	return os.WriteFile(filePath, []byte(sb.String()), 0o644)
 }
 
 func (g *GoGenerator) generateCompositeType(ct parser.CompositeType, outDir string) error {
@@ -95,7 +98,7 @@ func (g *GoGenerator) generateCompositeType(ct parser.CompositeType, outDir stri
 	importSet := make(map[string]bool)
 
 	for _, attr := range ct.Attributes {
-		goType, imp := pgTypeToGo(attr.Type, attr.Nullable)
+		goType, imp := pgTypeToGo(attr.Type, attr.Nullable, nil)
 		if imp != "" && !importSet[imp] {
 			imports = append(imports, imp)
 			importSet[imp] = true
@@ -111,7 +114,7 @@ func (g *GoGenerator) generateCompositeType(ct parser.CompositeType, outDir stri
 		if err != nil {
 			return fmt.Errorf("failed to merge composite type file: %w", err)
 		}
-		return os.WriteFile(filePath, content, 0644)
+		return os.WriteFile(filePath, content, 0o644)
 	}
 
 	var sb strings.Builder
@@ -120,18 +123,18 @@ func (g *GoGenerator) generateCompositeType(ct parser.CompositeType, outDir stri
 	if len(imports) > 0 {
 		sb.WriteString("import (\n")
 		for _, imp := range imports {
-			sb.WriteString(fmt.Sprintf("\t%q\n", imp))
+			fmt.Fprintf(&sb, "\t%q\n", imp)
 		}
 		sb.WriteString(")\n\n")
 	}
 
-	sb.WriteString(fmt.Sprintf("type %s struct {\n", typeName))
+	fmt.Fprintf(&sb, "type %s struct {\n", typeName)
 	for _, field := range fields {
-		sb.WriteString(fmt.Sprintf("\t%s %s\n", field.Name, field.Type))
+		fmt.Fprintf(&sb, "\t%s %s\n", field.Name, field.Type)
 	}
 	sb.WriteString("}\n")
 
-	return os.WriteFile(filePath, []byte(sb.String()), 0644)
+	return os.WriteFile(filePath, []byte(sb.String()), 0o644)
 }
 
 func (g *GoGenerator) generateTable(table parser.Table, outDir string) error {
@@ -145,7 +148,7 @@ func (g *GoGenerator) generateTable(table parser.Table, outDir string) error {
 	importSet := make(map[string]bool)
 
 	for _, col := range table.Columns {
-		goType, imp := pgTypeToGo(col.Type, col.Nullable)
+		goType, imp := pgTypeToGo(col.Type, col.Nullable, nil)
 		if imp != "" && !importSet[imp] {
 			imports = append(imports, imp)
 			importSet[imp] = true
@@ -174,7 +177,7 @@ func (g *GoGenerator) generateTable(table parser.Table, outDir string) error {
 		if err != nil {
 			return fmt.Errorf("failed to merge table file: %w", err)
 		}
-		return os.WriteFile(filePath, content, 0644)
+		return os.WriteFile(filePath, content, 0o644)
 	}
 
 	var sb strings.Builder
@@ -183,25 +186,25 @@ func (g *GoGenerator) generateTable(table parser.Table, outDir string) error {
 	if len(imports) > 0 {
 		sb.WriteString("import (\n")
 		for _, imp := range imports {
-			sb.WriteString(fmt.Sprintf("\t%q\n", imp))
+			fmt.Fprintf(&sb, "\t%q\n", imp)
 		}
 		sb.WriteString(")\n\n")
 	}
 
-	sb.WriteString(fmt.Sprintf("type %s struct {}\n\n", extensionTypeName))
+	fmt.Fprintf(&sb, "type %s struct {}\n\n", extensionTypeName)
 
-	sb.WriteString(fmt.Sprintf("type %s struct {\n", typeName))
+	fmt.Fprintf(&sb, "type %s struct {\n", typeName)
 	for _, field := range fields[:len(fields)-1] {
 		if field.Tag != "" {
-			sb.WriteString(fmt.Sprintf("\t%s %s `%s`\n", field.Name, field.Type, field.Tag))
+			fmt.Fprintf(&sb, "\t%s %s `%s`\n", field.Name, field.Type, field.Tag)
 		} else {
-			sb.WriteString(fmt.Sprintf("\t%s %s\n", field.Name, field.Type))
+			fmt.Fprintf(&sb, "\t%s %s\n", field.Name, field.Type)
 		}
 	}
-	sb.WriteString(fmt.Sprintf("\t%s\n", extensionTypeName))
+	fmt.Fprintf(&sb, "\t%s\n", extensionTypeName)
 	sb.WriteString("}\n")
 
-	return os.WriteFile(filePath, []byte(sb.String()), 0644)
+	return os.WriteFile(filePath, []byte(sb.String()), 0o644)
 }
 
 func fileExists(path string) bool {
@@ -209,7 +212,7 @@ func fileExists(path string) bool {
 	return err == nil
 }
 
-func pgTypeToGo(pgType string, nullable bool) (goType string, importPath string) {
+func pgTypeToGo(pgType string, nullable bool, schema *parser.Schema) (goType string, importPath string) {
 	pgType = strings.ToLower(strings.TrimSpace(pgType))
 
 	isArray := strings.HasSuffix(pgType, "[]") || strings.HasPrefix(pgType, "array")
@@ -288,9 +291,24 @@ func pgTypeToGo(pgType string, nullable bool) (goType string, importPath string)
 	case "oid":
 		baseType = "uint32"
 	default:
+		if schema != nil {
+			for _, e := range schema.Enums {
+				if strings.ToLower(e.Name) == pgType {
+					baseType = toPascalCase(e.Name)
+					goto done
+				}
+			}
+			for _, c := range schema.CompositeTypes {
+				if strings.ToLower(c.Name) == pgType {
+					baseType = toPascalCase(c.Name)
+					goto done
+				}
+			}
+		}
 		baseType = toPascalCase(pgType)
 	}
 
+done:
 	if isArray {
 		if baseType == "[]byte" {
 			goType = "[][]byte"
@@ -304,53 +322,4 @@ func pgTypeToGo(pgType string, nullable bool) (goType string, importPath string)
 	}
 
 	return goType, imp
-}
-
-func toPascalCase(s string) string {
-	s = strings.ReplaceAll(s, "-", "_")
-
-	words := strings.Split(s, "_")
-	var result strings.Builder
-
-	for _, word := range words {
-		if len(word) == 0 {
-			continue
-		}
-		upper := strings.ToUpper(word)
-		if isCommonInitialism(upper) {
-			result.WriteString(upper)
-		} else {
-			result.WriteString(strings.ToUpper(string(word[0])))
-			result.WriteString(strings.ToLower(word[1:]))
-		}
-	}
-
-	return result.String()
-}
-
-func toSnakeCase(s string) string {
-	var result strings.Builder
-	for i, r := range s {
-		if unicode.IsUpper(r) {
-			if i > 0 {
-				result.WriteRune('_')
-			}
-			result.WriteRune(unicode.ToLower(r))
-		} else {
-			result.WriteRune(r)
-		}
-	}
-	return result.String()
-}
-
-func isCommonInitialism(s string) bool {
-	initialisms := map[string]bool{
-		"ID": true, "URL": true, "URI": true, "API": true, "HTTP": true,
-		"HTTPS": true, "HTML": true, "JSON": true, "XML": true, "UUID": true,
-		"SQL": true, "SSH": true, "TCP": true, "UDP": true, "IP": true,
-		"DNS": true, "TLS": true, "SSL": true, "EOF": true, "ASCII": true,
-		"CPU": true, "CSS": true, "RAM": true, "RPC": true, "SLA": true,
-		"SMTP": true, "TTL": true, "UID": true, "UI": true, "UTF8": true,
-	}
-	return initialisms[s]
 }

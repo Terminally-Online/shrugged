@@ -6,12 +6,12 @@ import (
 )
 
 type GetUsersParams struct {
-	ID *int64 `json:"id,omitempty"`
-	Role *models.UserRole `json:"role,omitempty"`
+	ID     *int64                `json:"id,omitempty"`
+	Role   *models.UserRole      `json:"role,omitempty"`
 	Status *models.AccountStatus `json:"status,omitempty"`
 }
 
-const get_usersSQL = `
+const getUsersSQL = `
 SELECT id, email, role, status, display_name, avatar_url, mailing_address,
        preferences, email_verified_at, created_at, updated_at
 FROM users
@@ -21,7 +21,7 @@ WHERE (id = $1 OR $1 IS NULL)
 ORDER BY created_at DESC;`
 
 func (q *Queries) GetUsers(ctx context.Context, params GetUsersParams) ([]models.Users, error) {
-	rows, err := q.db.Query(ctx, get_usersSQL, params.ID, params.Role, params.Status)
+	rows, err := q.db.Query(ctx, getUsersSQL, params.ID, params.Role, params.Status)
 	if err != nil {
 		return nil, err
 	}

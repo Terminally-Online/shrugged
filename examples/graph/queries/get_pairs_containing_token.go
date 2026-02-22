@@ -9,11 +9,11 @@ type GetPairsContainingTokenRow struct {
 }
 
 type GetPairsContainingTokenParams struct {
-	ChainID int64 `json:"chain_id"`
+	ChainID      int64  `json:"chain_id"`
 	TokenAddress string `json:"token_address"`
 }
 
-const get_pairs_containing_tokenSQL = `
+const getPairsContainingTokenSQL = `
 SELECT DISTINCT cr.contract_address as pair_address
 FROM contract_relationship cr
 WHERE cr.chain_id = $1
@@ -21,7 +21,7 @@ WHERE cr.chain_id = $1
   AND cr.relationship_type IN ('token:0', 'token:1');`
 
 func (q *Queries) GetPairsContainingToken(ctx context.Context, params GetPairsContainingTokenParams) ([]GetPairsContainingTokenRow, error) {
-	rows, err := q.db.Query(ctx, get_pairs_containing_tokenSQL, params.ChainID, params.TokenAddress)
+	rows, err := q.db.Query(ctx, getPairsContainingTokenSQL, params.ChainID, params.TokenAddress)
 	if err != nil {
 		return nil, err
 	}

@@ -110,13 +110,13 @@ func TestIntrospectQueries_Integration(t *testing.T) {
 	if len(getUserQuery.Parameters) != 1 {
 		t.Errorf("expected 1 parameter, got %d", len(getUserQuery.Parameters))
 	}
-	if getUserQuery.Parameters[0].GoType == "" {
-		t.Error("parameter GoType should be set")
+	if getUserQuery.Parameters[0].Type == "" {
+		t.Error("parameter Type should be set")
 	}
 
 	for _, col := range getUserQuery.Columns {
-		if col.GoType == "" {
-			t.Errorf("column %s GoType should be set", col.Name)
+		if col.Type == "" {
+			t.Errorf("column %s Type should be set", col.Name)
 		}
 	}
 
@@ -209,8 +209,8 @@ func TestIntrospectQueries_JSONAggregation(t *testing.T) {
 	if !postsCol.IsJSONAgg {
 		t.Error("posts column should be marked as IsJSONAgg")
 	}
-	if postsCol.JSONElemGoType != "Posts" {
-		t.Errorf("JSONElemGoType = %q, want %q", postsCol.JSONElemGoType, "Posts")
+	if postsCol.JSONElemType != "posts" {
+		t.Errorf("JSONElemType = %q, want %q", postsCol.JSONElemType, "posts")
 	}
 }
 
@@ -240,39 +240,6 @@ func TestOidToTypeName(t *testing.T) {
 			got := oidToTypeName(tt.oid)
 			if got != tt.want {
 				t.Errorf("oidToTypeName(%d) = %q, want %q", tt.oid, got, tt.want)
-			}
-		})
-	}
-}
-
-func TestPgTypeToGo(t *testing.T) {
-	tests := []struct {
-		pgType   string
-		nullable bool
-		wantType string
-		wantImp  string
-	}{
-		{"integer", false, "int32", ""},
-		{"integer", true, "*int32", ""},
-		{"bigint", false, "int64", ""},
-		{"text", false, "string", ""},
-		{"text", true, "*string", ""},
-		{"boolean", false, "bool", ""},
-		{"timestamp with time zone", false, "time.Time", "time"},
-		{"timestamp with time zone", true, "*time.Time", "time"},
-		{"jsonb", false, "json.RawMessage", "encoding/json"},
-		{"uuid", false, "string", ""},
-		{"integer[]", false, "[]int32", ""},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.pgType, func(t *testing.T) {
-			gotType, gotImp := pgTypeToGo(tt.pgType, tt.nullable, nil)
-			if gotType != tt.wantType {
-				t.Errorf("pgTypeToGo(%q, %v) type = %q, want %q", tt.pgType, tt.nullable, gotType, tt.wantType)
-			}
-			if gotImp != tt.wantImp {
-				t.Errorf("pgTypeToGo(%q, %v) import = %q, want %q", tt.pgType, tt.nullable, gotImp, tt.wantImp)
 			}
 		})
 	}

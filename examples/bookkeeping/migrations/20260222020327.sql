@@ -32,6 +32,24 @@ CREATE TABLE users (
     CONSTRAINT users_pkey PRIMARY KEY (id)
 );
 
+CREATE TABLE tickets (
+    id bigint NOT NULL DEFAULT nextval('tickets_id_seq'::regclass),
+    user_id bigint NOT NULL,
+    assignee_id bigint,
+    priority priority_level NOT NULL DEFAULT 'medium'::priority_level,
+    status account_status NOT NULL DEFAULT 'active'::account_status,
+    title text NOT NULL,
+    description text,
+    tags text[],
+    due_date date,
+    created_at timestamp with time zone NOT NULL DEFAULT now(),
+    updated_at timestamp with time zone,
+    resolved_at timestamp with time zone,
+    CONSTRAINT tickets_assignee_id_fkey FOREIGN KEY (assignee_id) REFERENCES users (id) ON DELETE SET NULL,
+    CONSTRAINT tickets_pkey PRIMARY KEY (id),
+    CONSTRAINT tickets_user_id_fkey FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+);
+
 CREATE TABLE audit_log (
     id bigint NOT NULL DEFAULT nextval('audit_log_id_seq'::regclass),
     user_id bigint,
@@ -59,45 +77,27 @@ CREATE TABLE invoices (
     CONSTRAINT invoices_user_id_fkey FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 );
 
-CREATE TABLE tickets (
-    id bigint NOT NULL DEFAULT nextval('tickets_id_seq'::regclass),
-    user_id bigint NOT NULL,
-    assignee_id bigint,
-    priority priority_level NOT NULL DEFAULT 'medium'::priority_level,
-    status account_status NOT NULL DEFAULT 'active'::account_status,
-    title text NOT NULL,
-    description text,
-    tags text[],
-    due_date date,
-    created_at timestamp with time zone NOT NULL DEFAULT now(),
-    updated_at timestamp with time zone,
-    resolved_at timestamp with time zone,
-    CONSTRAINT tickets_assignee_id_fkey FOREIGN KEY (assignee_id) REFERENCES users (id) ON DELETE SET NULL,
-    CONSTRAINT tickets_pkey PRIMARY KEY (id),
-    CONSTRAINT tickets_user_id_fkey FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
-);
+CREATE INDEX idx_audit_log_created_at ON public.audit_log USING btree (created_at);
 
-CREATE INDEX idx_audit_log_created_at ON audit_log (created_at);
+CREATE INDEX idx_audit_log_resource ON public.audit_log USING btree (resource_type, resource_id);
 
-CREATE INDEX idx_audit_log_resource ON audit_log (resource_type, resource_id);
+CREATE INDEX idx_audit_log_user_id ON public.audit_log USING btree (user_id);
 
-CREATE INDEX idx_audit_log_user_id ON audit_log (user_id);
+CREATE INDEX idx_invoices_status ON public.invoices USING btree (status);
 
-CREATE INDEX idx_invoices_status ON invoices (status);
+CREATE INDEX idx_invoices_user_id ON public.invoices USING btree (user_id);
 
-CREATE INDEX idx_invoices_user_id ON invoices (user_id);
+CREATE INDEX idx_tickets_assignee_id ON public.tickets USING btree (assignee_id);
 
-CREATE INDEX idx_tickets_assignee_id ON tickets (assignee_id);
+CREATE INDEX idx_tickets_priority ON public.tickets USING btree (priority);
 
-CREATE INDEX idx_tickets_priority ON tickets (priority);
+CREATE INDEX idx_tickets_status ON public.tickets USING btree (status);
 
-CREATE INDEX idx_tickets_status ON tickets (status);
+CREATE INDEX idx_tickets_user_id ON public.tickets USING btree (user_id);
 
-CREATE INDEX idx_tickets_user_id ON tickets (user_id);
+CREATE INDEX idx_users_role ON public.users USING btree (role);
 
-CREATE INDEX idx_users_role ON users (role);
-
-CREATE INDEX idx_users_status ON users (status);
+CREATE INDEX idx_users_status ON public.users USING btree (status);
 
 GRANT USAGE ON TYPE address TO PUBLIC;
 

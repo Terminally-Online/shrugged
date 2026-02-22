@@ -6,14 +6,14 @@ import (
 )
 
 type GetTicketsParams struct {
-	ID *int64 `json:"id,omitempty"`
-	UserID *int64 `json:"user_id,omitempty"`
-	AssigneeID *int64 `json:"assignee_id,omitempty"`
-	Priority *models.PriorityLevel `json:"priority,omitempty"`
-	Status *models.AccountStatus `json:"status,omitempty"`
+	ID         *int64                `json:"id,omitempty"`
+	UserID     *int64                `json:"user_id,omitempty"`
+	AssigneeID *int64                `json:"assignee_id,omitempty"`
+	Priority   *models.PriorityLevel `json:"priority,omitempty"`
+	Status     *models.AccountStatus `json:"status,omitempty"`
 }
 
-const get_ticketsSQL = `
+const getTicketsSQL = `
 SELECT id, user_id, assignee_id, priority, status, title, description,
        tags, due_date, created_at, updated_at, resolved_at
 FROM tickets
@@ -32,7 +32,7 @@ ORDER BY
     created_at DESC;`
 
 func (q *Queries) GetTickets(ctx context.Context, params GetTicketsParams) ([]models.Tickets, error) {
-	rows, err := q.db.Query(ctx, get_ticketsSQL, params.ID, params.UserID, params.AssigneeID, params.Priority, params.Status)
+	rows, err := q.db.Query(ctx, getTicketsSQL, params.ID, params.UserID, params.AssigneeID, params.Priority, params.Status)
 	if err != nil {
 		return nil, err
 	}

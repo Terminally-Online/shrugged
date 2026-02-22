@@ -25,20 +25,15 @@ type QueryParameter struct {
 	Name     string
 	Position int
 	Type     string
-	GoType   string
-	Import   string
 	Nullable bool
 }
 
 type QueryColumn struct {
-	Name           string
-	Type           string
-	GoType         string
-	Import         string
-	Nullable       bool
-	IsJSONAgg      bool
-	JSONElemType   string
-	JSONElemGoType string
+	Name         string
+	Type         string
+	Nullable     bool
+	IsJSONAgg    bool
+	JSONElemType string
 }
 
 type NestMapping struct {

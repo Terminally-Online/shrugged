@@ -6,12 +6,12 @@ import (
 )
 
 type GetAuditLogParams struct {
-	UserID *int64 `json:"user_id,omitempty"`
+	UserID       *int64  `json:"user_id,omitempty"`
 	ResourceType *string `json:"resource_type,omitempty"`
-	ResourceID *int64 `json:"resource_id,omitempty"`
+	ResourceID   *int64  `json:"resource_id,omitempty"`
 }
 
-const get_audit_logSQL = `
+const getAuditLogSQL = `
 SELECT id, user_id, action, resource_type, resource_id, old_values, new_values,
        ip_address, user_agent, created_at
 FROM audit_log
@@ -22,7 +22,7 @@ ORDER BY created_at DESC
 LIMIT 100;`
 
 func (q *Queries) GetAuditLog(ctx context.Context, params GetAuditLogParams) ([]models.AuditLog, error) {
-	rows, err := q.db.Query(ctx, get_audit_logSQL, params.UserID, params.ResourceType, params.ResourceID)
+	rows, err := q.db.Query(ctx, getAuditLogSQL, params.UserID, params.ResourceType, params.ResourceID)
 	if err != nil {
 		return nil, err
 	}

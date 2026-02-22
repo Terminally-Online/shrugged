@@ -7,13 +7,13 @@ import (
 )
 
 type GetUserWithPostsRow struct {
-	ID *int64 `json:"id,omitempty"`
-	Email *string `json:"email,omitempty"`
-	Name *string `json:"name,omitempty"`
+	ID    *int64         `json:"id,omitempty"`
+	Email *string        `json:"email,omitempty"`
+	Name  *string        `json:"name,omitempty"`
 	Posts []models.Posts `json:"posts,omitempty"`
 }
 
-const get_user_with_postsSQL = `
+const getUserWithPostsSQL = `
 SELECT
     u.id,
     u.email,
@@ -23,7 +23,7 @@ FROM users u
 WHERE u.id = $1;`
 
 func (q *Queries) GetUserWithPosts(ctx context.Context, id int64) (*GetUserWithPostsRow, error) {
-	row := q.db.QueryRow(ctx, get_user_with_postsSQL, id)
+	row := q.db.QueryRow(ctx, getUserWithPostsSQL, id)
 
 	var result GetUserWithPostsRow
 	var postsJSON []byte

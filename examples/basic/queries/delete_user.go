@@ -4,11 +4,11 @@ import (
 	"context"
 )
 
-const delete_userSQL = `
+const deleteUserSQL = `
 DELETE FROM users WHERE id = $1;`
 
 func (q *Queries) DeleteUser(ctx context.Context, id int64) (int64, error) {
-	result, err := q.db.Exec(ctx, delete_userSQL, id)
+	result, err := q.db.Exec(ctx, deleteUserSQL, id)
 	if err != nil {
 		return 0, err
 	}

@@ -10,7 +10,57 @@ import (
 	"github.com/terminally-online/shrugged/internal/parser"
 )
 
-func GenerateQueries(queries []parser.Query, outDir string, modelsPackage string, modelsDir string, schema *parser.Schema, clean bool) ([]string, error) {
+type resolvedColumn struct {
+	parser.QueryColumn
+	GoType         string
+	Import         string
+	JSONElemGoType string
+}
+
+type resolvedParameter struct {
+	parser.QueryParameter
+	GoType string
+	Import string
+}
+
+type resolvedQuery struct {
+	parser.Query
+	Columns    []resolvedColumn
+	Parameters []resolvedParameter
+}
+
+func resolveQuery(q parser.Query, schema *parser.Schema) resolvedQuery {
+	rq := resolvedQuery{Query: q}
+
+	rq.Parameters = make([]resolvedParameter, len(q.Parameters))
+	for i, p := range q.Parameters {
+		goType, imp := pgTypeToGo(p.Type, p.Nullable, schema)
+		rq.Parameters[i] = resolvedParameter{
+			QueryParameter: p,
+			GoType:         goType,
+			Import:         imp,
+		}
+	}
+
+	rq.Columns = make([]resolvedColumn, len(q.Columns))
+	for i, col := range q.Columns {
+		goType, imp := pgTypeToGo(col.Type, col.Nullable, schema)
+		var jsonElemGoType string
+		if col.IsJSONAgg && col.JSONElemType != "" {
+			jsonElemGoType = toPascalCase(col.JSONElemType)
+		}
+		rq.Columns[i] = resolvedColumn{
+			QueryColumn:    col,
+			GoType:         goType,
+			Import:         imp,
+			JSONElemGoType: jsonElemGoType,
+		}
+	}
+
+	return rq
+}
+
+func generateQueries(queries []parser.Query, outDir string, modelsPackage string, modelsDir string, schema *parser.Schema, clean bool) ([]string, error) {
 	if err := os.MkdirAll(outDir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create output directory: %w", err)
 	}
@@ -27,10 +77,11 @@ func GenerateQueries(queries []parser.Query, outDir string, modelsPackage string
 	generatedFiles["global.go"] = true
 
 	for _, q := range queries {
-		if err := generateQueryFile(q, outDir, modelsPackage, customTypes, schema, extensionFields); err != nil {
+		rq := resolveQuery(q, schema)
+		if err := generateQueryFile(rq, outDir, modelsPackage, customTypes, schema, extensionFields); err != nil {
 			return nil, err
 		}
-		fileName := toSnakeCaseLower(q.Name) + ".go"
+		fileName := toSnakeCase(q.Name) + ".go"
 		generatedFiles[fileName] = true
 	}
 
@@ -117,17 +168,17 @@ type ModelMatch struct {
 	ExtensionFields map[string]bool
 }
 
-func findMatchingModel(q parser.Query, schema *parser.Schema, extensionFields map[string][]StructField) *ModelMatch {
-	if schema == nil || len(q.Columns) == 0 {
+func findMatchingModel(rq resolvedQuery, schema *parser.Schema, extensionFields map[string][]StructField) *ModelMatch {
+	if schema == nil || len(rq.Columns) == 0 {
 		return nil
 	}
 
-	if q.ResultType != parser.QueryResultRow && q.ResultType != parser.QueryResultRows {
+	if rq.ResultType != parser.QueryResultRow && rq.ResultType != parser.QueryResultRows {
 		return nil
 	}
 
 	queryColNames := make(map[string]bool)
-	for _, col := range q.Columns {
+	for _, col := range rq.Columns {
 		queryColNames[col.Name] = true
 	}
 
@@ -221,11 +272,11 @@ func (q *Queries) WithTx(tx pgx.Tx) *Queries {
 	return os.WriteFile(filePath, []byte(content), 0644)
 }
 
-func generateQueryFile(q parser.Query, outDir string, modelsPackage string, customTypes map[string]bool, schema *parser.Schema, extensionFields map[string][]StructField) error {
+func generateQueryFile(rq resolvedQuery, outDir string, modelsPackage string, customTypes map[string]bool, schema *parser.Schema, extensionFields map[string][]StructField) error {
 	var sb strings.Builder
 
-	match := findMatchingModel(q, schema, extensionFields)
-	imports := collectQueryImports(q, modelsPackage, customTypes, match)
+	match := findMatchingModel(rq, schema, extensionFields)
+	imports := collectQueryImports(rq, modelsPackage, customTypes, match)
 
 	sb.WriteString("package queries\n\n")
 
@@ -237,37 +288,37 @@ func generateQueryFile(q parser.Query, outDir string, modelsPackage string, cust
 		sb.WriteString(")\n\n")
 	}
 
-	needsResultStruct := needsCustomResultStruct(q) && match == nil
+	needsResultStruct := needsCustomResultStruct(rq) && match == nil
 	if needsResultStruct {
-		sb.WriteString(generateResultStruct(q, modelsPackage, customTypes))
+		sb.WriteString(generateResultStruct(rq, modelsPackage, customTypes))
 		sb.WriteString("\n")
 	}
 
-	needsParamsStruct := len(q.Parameters) > 1
+	needsParamsStruct := len(rq.Parameters) > 1
 	if needsParamsStruct {
-		sb.WriteString(generateParamsStruct(q, modelsPackage, customTypes))
+		sb.WriteString(generateParamsStruct(rq, modelsPackage, customTypes))
 		sb.WriteString("\n")
 	}
 
-	sb.WriteString(generateQueryConstant(q))
+	sb.WriteString(generateQueryConstant(rq))
 	sb.WriteString("\n")
 
-	sb.WriteString(generateQueryFunction(q, modelsPackage, needsResultStruct, customTypes, match))
+	sb.WriteString(generateQueryFunction(rq, modelsPackage, needsResultStruct, customTypes, match))
 
-	fileName := toSnakeCaseLower(q.Name) + ".go"
+	fileName := toSnakeCase(rq.Name) + ".go"
 	filePath := filepath.Join(outDir, fileName)
 	return os.WriteFile(filePath, []byte(sb.String()), 0644)
 }
 
-func collectQueryImports(q parser.Query, modelsPackage string, customTypes map[string]bool, match *ModelMatch) []string {
+func collectQueryImports(rq resolvedQuery, modelsPackage string, customTypes map[string]bool, match *ModelMatch) []string {
 	importSet := make(map[string]bool)
 	importSet["context"] = true
 
 	needsModels := match != nil
 
-	switch q.ResultType {
+	switch rq.ResultType {
 	case parser.QueryResultRow, parser.QueryResultRows:
-		for _, col := range q.Columns {
+		for _, col := range rq.Columns {
 			if col.Import != "" && match == nil {
 				importSet[col.Import] = true
 			}
@@ -280,7 +331,7 @@ func collectQueryImports(q parser.Query, modelsPackage string, customTypes map[s
 		}
 	}
 
-	for _, p := range q.Parameters {
+	for _, p := range rq.Parameters {
 		if p.Import != "" {
 			importSet[p.Import] = true
 		}
@@ -309,25 +360,25 @@ func isCustomType(goType string, customTypes map[string]bool) bool {
 	return customTypes[goType]
 }
 
-func needsCustomResultStruct(q parser.Query) bool {
-	if q.ResultType == parser.QueryResultExec || q.ResultType == parser.QueryResultExecRows {
+func needsCustomResultStruct(rq resolvedQuery) bool {
+	if rq.ResultType == parser.QueryResultExec || rq.ResultType == parser.QueryResultExecRows {
 		return false
 	}
 
-	if len(q.Columns) == 0 {
+	if len(rq.Columns) == 0 {
 		return false
 	}
 
 	return true
 }
 
-func generateResultStruct(q parser.Query, modelsPackage string, customTypes map[string]bool) string {
+func generateResultStruct(rq resolvedQuery, modelsPackage string, customTypes map[string]bool) string {
 	var sb strings.Builder
 
-	structName := q.Name + "Row"
+	structName := rq.Name + "Row"
 	sb.WriteString(fmt.Sprintf("type %s struct {\n", structName))
 
-	for _, col := range q.Columns {
+	for _, col := range rq.Columns {
 		fieldName := toPascalCase(col.Name)
 		fieldType := col.GoType
 
@@ -355,13 +406,13 @@ func generateResultStruct(q parser.Query, modelsPackage string, customTypes map[
 	return sb.String()
 }
 
-func generateParamsStruct(q parser.Query, modelsPackage string, customTypes map[string]bool) string {
+func generateParamsStruct(rq resolvedQuery, modelsPackage string, customTypes map[string]bool) string {
 	var sb strings.Builder
 
-	structName := q.Name + "Params"
+	structName := rq.Name + "Params"
 	sb.WriteString(fmt.Sprintf("type %s struct {\n", structName))
 
-	for _, p := range q.Parameters {
+	for _, p := range rq.Parameters {
 		fieldName := toPascalCase(p.Name)
 		fieldType := p.GoType
 		if fieldType == "" {
@@ -404,16 +455,20 @@ func prefixCustomType(goType string, modelsPackage string, customTypes map[strin
 	return goType
 }
 
-func generateQueryConstant(q parser.Query) string {
-	constName := toSnakeCaseLower(q.Name) + "SQL"
-	return fmt.Sprintf("const %s = `\n%s`\n", constName, q.PreparedSQL)
+func queryConstName(queryName string) string {
+	return toCamelCase(toSnakeCase(queryName)) + "SQL"
 }
 
-func generateQueryFunction(q parser.Query, modelsPackage string, needsResultStruct bool, customTypes map[string]bool, match *ModelMatch) string {
+func generateQueryConstant(rq resolvedQuery) string {
+	constName := queryConstName(rq.Name)
+	return fmt.Sprintf("const %s = `\n%s`\n", constName, rq.PreparedSQL)
+}
+
+func generateQueryFunction(rq resolvedQuery, modelsPackage string, needsResultStruct bool, customTypes map[string]bool, match *ModelMatch) string {
 	var sb strings.Builder
 
-	funcName := q.Name
-	constName := toSnakeCaseLower(q.Name) + "SQL"
+	funcName := rq.Name
+	constName := queryConstName(rq.Name)
 
 	var structName string
 	if match != nil && modelsPackage != "" {
@@ -421,17 +476,17 @@ func generateQueryFunction(q parser.Query, modelsPackage string, needsResultStru
 		pkgName := parts[len(parts)-1]
 		structName = pkgName + "." + toPascalCase(match.Table.Name)
 	} else {
-		structName = q.Name + "Row"
+		structName = rq.Name + "Row"
 	}
 
-	useParamsStruct := len(q.Parameters) > 1
+	useParamsStruct := len(rq.Parameters) > 1
 	params := []string{"ctx context.Context"}
 
 	if useParamsStruct {
-		paramsStructName := q.Name + "Params"
+		paramsStructName := rq.Name + "Params"
 		params = append(params, fmt.Sprintf("params %s", paramsStructName))
 	} else {
-		for _, p := range q.Parameters {
+		for _, p := range rq.Parameters {
 			paramType := p.GoType
 			if paramType == "" {
 				paramType = "interface{}"
@@ -440,12 +495,12 @@ func generateQueryFunction(q parser.Query, modelsPackage string, needsResultStru
 			if p.Nullable && !strings.HasPrefix(paramType, "*") {
 				paramType = "*" + paramType
 			}
-			params = append(params, fmt.Sprintf("%s %s", p.Name, paramType))
+			params = append(params, fmt.Sprintf("%s %s", toCamelCase(p.Name), paramType))
 		}
 	}
 
 	var returnType string
-	switch q.ResultType {
+	switch rq.ResultType {
 	case parser.QueryResultRow:
 		returnType = fmt.Sprintf("(*%s, error)", structName)
 	case parser.QueryResultRows:
@@ -458,21 +513,21 @@ func generateQueryFunction(q parser.Query, modelsPackage string, needsResultStru
 
 	sb.WriteString(fmt.Sprintf("func (q *Queries) %s(%s) %s {\n", funcName, strings.Join(params, ", "), returnType))
 
-	args := make([]string, len(q.Parameters))
-	for i, p := range q.Parameters {
+	args := make([]string, len(rq.Parameters))
+	for i, p := range rq.Parameters {
 		if useParamsStruct {
 			args[i] = "params." + toPascalCase(p.Name)
 		} else {
-			args[i] = p.Name
+			args[i] = toCamelCase(p.Name)
 		}
 	}
 	argsStr := strings.Join(args, ", ")
 
-	switch q.ResultType {
+	switch rq.ResultType {
 	case parser.QueryResultRow:
-		sb.WriteString(generateRowQuery(q, constName, structName, argsStr, match))
+		sb.WriteString(generateRowQuery(rq, constName, structName, argsStr, match))
 	case parser.QueryResultRows:
-		sb.WriteString(generateRowsQuery(q, constName, structName, argsStr, match))
+		sb.WriteString(generateRowsQuery(rq, constName, structName, argsStr, match))
 	case parser.QueryResultExec:
 		sb.WriteString(generateExecQuery(constName, argsStr))
 	case parser.QueryResultExecRows:
@@ -483,7 +538,7 @@ func generateQueryFunction(q parser.Query, modelsPackage string, needsResultStru
 	return sb.String()
 }
 
-func generateRowQuery(q parser.Query, constName, structName, argsStr string, match *ModelMatch) string {
+func generateRowQuery(rq resolvedQuery, constName, structName, argsStr string, match *ModelMatch) string {
 	var sb strings.Builder
 
 	if argsStr != "" {
@@ -494,8 +549,8 @@ func generateRowQuery(q parser.Query, constName, structName, argsStr string, mat
 
 	sb.WriteString(fmt.Sprintf("\tvar result %s\n", structName))
 
-	var jsonAggCols []parser.QueryColumn
-	for _, col := range q.Columns {
+	var jsonAggCols []resolvedColumn
+	for _, col := range rq.Columns {
 		if col.IsJSONAgg && !isExtensionField(col.Name, match) {
 			jsonAggCols = append(jsonAggCols, col)
 		}
@@ -503,20 +558,20 @@ func generateRowQuery(q parser.Query, constName, structName, argsStr string, mat
 
 	if len(jsonAggCols) > 0 {
 		for _, col := range jsonAggCols {
-			varName := toSnakeCaseLower(col.Name) + "JSON"
+			varName := toCamelCase(col.Name) + "JSON"
 			sb.WriteString(fmt.Sprintf("\tvar %s []byte\n", varName))
 		}
 		sb.WriteString("\n")
 	}
 
-	scanArgs := generateScanArgsWithMatch(q.Columns, "result", match)
+	scanArgs := generateScanArgsWithMatch(rq.Columns, "result", match)
 	sb.WriteString(fmt.Sprintf("\terr := row.Scan(%s)\n", scanArgs))
 	sb.WriteString("\tif err != nil {\n")
 	sb.WriteString("\t\treturn nil, err\n")
 	sb.WriteString("\t}\n")
 
 	for _, col := range jsonAggCols {
-		varName := toSnakeCaseLower(col.Name) + "JSON"
+		varName := toCamelCase(col.Name) + "JSON"
 		fieldName := toPascalCase(col.Name)
 		sb.WriteString(fmt.Sprintf("\n\tif %s != nil {\n", varName))
 		sb.WriteString(fmt.Sprintf("\t\tif err := json.Unmarshal(%s, &result.%s); err != nil {\n", varName, fieldName))
@@ -536,7 +591,7 @@ func isExtensionField(colName string, match *ModelMatch) bool {
 	return match.ExtensionFields[colName]
 }
 
-func generateRowsQuery(q parser.Query, constName, structName, argsStr string, match *ModelMatch) string {
+func generateRowsQuery(rq resolvedQuery, constName, structName, argsStr string, match *ModelMatch) string {
 	var sb strings.Builder
 
 	if argsStr != "" {
@@ -553,8 +608,8 @@ func generateRowsQuery(q parser.Query, constName, structName, argsStr string, ma
 	sb.WriteString("\tfor rows.Next() {\n")
 	sb.WriteString(fmt.Sprintf("\t\tvar item %s\n", structName))
 
-	var jsonAggCols []parser.QueryColumn
-	for _, col := range q.Columns {
+	var jsonAggCols []resolvedColumn
+	for _, col := range rq.Columns {
 		if col.IsJSONAgg && !isExtensionField(col.Name, match) {
 			jsonAggCols = append(jsonAggCols, col)
 		}
@@ -562,19 +617,19 @@ func generateRowsQuery(q parser.Query, constName, structName, argsStr string, ma
 
 	if len(jsonAggCols) > 0 {
 		for _, col := range jsonAggCols {
-			varName := toSnakeCaseLower(col.Name) + "JSON"
+			varName := toCamelCase(col.Name) + "JSON"
 			sb.WriteString(fmt.Sprintf("\t\tvar %s []byte\n", varName))
 		}
 	}
 
-	scanArgs := generateScanArgsWithMatch(q.Columns, "item", match)
+	scanArgs := generateScanArgsWithMatch(rq.Columns, "item", match)
 	sb.WriteString(fmt.Sprintf("\t\terr := rows.Scan(%s)\n", scanArgs))
 	sb.WriteString("\t\tif err != nil {\n")
 	sb.WriteString("\t\t\treturn nil, err\n")
 	sb.WriteString("\t\t}\n")
 
 	for _, col := range jsonAggCols {
-		varName := toSnakeCaseLower(col.Name) + "JSON"
+		varName := toCamelCase(col.Name) + "JSON"
 		fieldName := toPascalCase(col.Name)
 		sb.WriteString(fmt.Sprintf("\t\tif %s != nil {\n", varName))
 		sb.WriteString(fmt.Sprintf("\t\t\tif err := json.Unmarshal(%s, &item.%s); err != nil {\n", varName, fieldName))
@@ -623,45 +678,16 @@ func generateExecRowsQuery(constName, argsStr string) string {
 	return sb.String()
 }
 
-func generateScanArgsWithMatch(cols []parser.QueryColumn, varName string, match *ModelMatch) string {
+func generateScanArgsWithMatch(cols []resolvedColumn, varName string, match *ModelMatch) string {
 	var args []string
 	for _, col := range cols {
 		fieldName := toPascalCase(col.Name)
 		if col.IsJSONAgg && !isExtensionField(col.Name, match) {
-			jsonVarName := toSnakeCaseLower(col.Name) + "JSON"
+			jsonVarName := toCamelCase(col.Name) + "JSON"
 			args = append(args, "&"+jsonVarName)
 		} else {
 			args = append(args, "&"+varName+"."+fieldName)
 		}
 	}
 	return strings.Join(args, ", ")
-}
-
-func toSnakeCaseLower(s string) string {
-	if s == "" {
-		return ""
-	}
-
-	var result strings.Builder
-	runes := []rune(s)
-
-	for i := 0; i < len(runes); i++ {
-		r := runes[i]
-
-		if r >= 'A' && r <= 'Z' {
-			if i > 0 {
-				prevLower := runes[i-1] >= 'a' && runes[i-1] <= 'z'
-				nextLower := i+1 < len(runes) && runes[i+1] >= 'a' && runes[i+1] <= 'z'
-
-				if prevLower || nextLower {
-					result.WriteRune('_')
-				}
-			}
-			result.WriteRune(r + 32)
-		} else {
-			result.WriteRune(r)
-		}
-	}
-
-	return result.String()
 }

@@ -70,12 +70,81 @@ func TestPgTypeToGo(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.pgType, func(t *testing.T) {
-			gotType, gotImp := pgTypeToGo(tt.pgType, tt.nullable)
+			gotType, gotImp := pgTypeToGo(tt.pgType, tt.nullable, nil)
 			if gotType != tt.wantType {
 				t.Errorf("pgTypeToGo(%q, %v) type = %q, want %q", tt.pgType, tt.nullable, gotType, tt.wantType)
 			}
 			if gotImp != tt.wantImp {
 				t.Errorf("pgTypeToGo(%q, %v) import = %q, want %q", tt.pgType, tt.nullable, gotImp, tt.wantImp)
+			}
+		})
+	}
+}
+
+func TestPgTypeToGoSchemaAware(t *testing.T) {
+	schema := &parser.Schema{
+		Enums: []parser.Enum{
+			{Name: "user_status", Values: []string{"active", "inactive"}},
+		},
+		CompositeTypes: []parser.CompositeType{
+			{Name: "address", Attributes: []parser.Column{{Name: "street", Type: "text"}}},
+		},
+	}
+
+	tests := []struct {
+		pgType   string
+		nullable bool
+		wantType string
+	}{
+		{"user_status", false, "UserStatus"},
+		{"user_status", true, "*UserStatus"},
+		{"address", false, "Address"},
+		{"address", true, "*Address"},
+		{"unknown_type", false, "UnknownType"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.pgType, func(t *testing.T) {
+			gotType, _ := pgTypeToGo(tt.pgType, tt.nullable, schema)
+			if gotType != tt.wantType {
+				t.Errorf("pgTypeToGo(%q, %v, schema) type = %q, want %q", tt.pgType, tt.nullable, gotType, tt.wantType)
+			}
+		})
+	}
+}
+
+func TestToCamelCase(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{"user", "user"},
+		{"user_id", "userID"},
+		{"user_name", "userName"},
+		{"created_at", "createdAt"},
+		{"http_url", "httpURL"},
+		{"api_key", "apiKey"},
+		{"json_data", "jsonData"},
+		{"xml_content", "xmlContent"},
+		{"user_uuid", "userUUID"},
+		{"sql_query", "sqlQuery"},
+		{"tcp_port", "tcpPort"},
+		{"is_active", "isActive"},
+		{"has_bio", "hasBio"},
+		{"id", "id"},
+		{"url", "url"},
+		{"a", "a"},
+		{"", ""},
+		{"avatar_url", "avatarURL"},
+		{"display_name", "displayName"},
+		{"with-dashes", "withDashes"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			got := toCamelCase(tt.input)
+			if got != tt.want {
+				t.Errorf("toCamelCase(%q) = %q, want %q", tt.input, got, tt.want)
 			}
 		})
 	}
@@ -123,13 +192,13 @@ func TestToSnakeCase(t *testing.T) {
 		want  string
 	}{
 		{"user", "user"},
-		{"UserID", "user_i_d"},
+		{"UserID", "user_id"},
 		{"userName", "user_name"},
 		{"CreatedAt", "created_at"},
 		{"already_snake", "already_snake"},
 		{"A", "a"},
 		{"", ""},
-		{"ABC", "a_b_c"},
+		{"ABC", "abc"},
 	}
 
 	for _, tt := range tests {
@@ -162,7 +231,7 @@ func TestFileExists(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	existingFile := filepath.Join(tmpDir, "exists.txt")
-	if err := os.WriteFile(existingFile, []byte("test"), 0644); err != nil {
+	if err := os.WriteFile(existingFile, []byte("test"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 

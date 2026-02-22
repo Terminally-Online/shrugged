@@ -6,11 +6,11 @@ import (
 
 type UpdateUserParams struct {
 	Name string `json:"name"`
-	Bio string `json:"bio"`
-	ID int64 `json:"id"`
+	Bio  string `json:"bio"`
+	ID   int64  `json:"id"`
 }
 
-const update_userSQL = `
+const updateUserSQL = `
 UPDATE users
 SET name = COALESCE($1, name),
     bio = COALESCE($2, bio),
@@ -18,6 +18,6 @@ SET name = COALESCE($1, name),
 WHERE id = $3;`
 
 func (q *Queries) UpdateUser(ctx context.Context, params UpdateUserParams) error {
-	_, err := q.db.Exec(ctx, update_userSQL, params.Name, params.Bio, params.ID)
+	_, err := q.db.Exec(ctx, updateUserSQL, params.Name, params.Bio, params.ID)
 	return err
 }

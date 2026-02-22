@@ -6,13 +6,13 @@ import (
 )
 
 type GetContractsParams struct {
-	ChainID int64 `json:"chain_id"`
+	ChainID  int64  `json:"chain_id"`
 	Standard string `json:"standard"`
 	Protocol string `json:"protocol"`
-	Verified bool `json:"verified"`
+	Verified bool   `json:"verified"`
 }
 
-const get_contractsSQL = `
+const getContractsSQL = `
 SELECT chain_id, contract_address, token_id, standard, protocol, name, symbol, decimals, icon, description, verified, color
 FROM contract
 WHERE chain_id = $1
@@ -22,7 +22,7 @@ WHERE chain_id = $1
 ORDER BY name;`
 
 func (q *Queries) GetContracts(ctx context.Context, params GetContractsParams) ([]models.Contract, error) {
-	rows, err := q.db.Query(ctx, get_contractsSQL, params.ChainID, params.Standard, params.Protocol, params.Verified)
+	rows, err := q.db.Query(ctx, getContractsSQL, params.ChainID, params.Standard, params.Protocol, params.Verified)
 	if err != nil {
 		return nil, err
 	}

@@ -6,12 +6,12 @@ import (
 )
 
 type GetInvoicesParams struct {
-	ID *int64 `json:"id,omitempty"`
-	UserID *int64 `json:"user_id,omitempty"`
+	ID     *int64                `json:"id,omitempty"`
+	UserID *int64                `json:"user_id,omitempty"`
 	Status *models.AccountStatus `json:"status,omitempty"`
 }
 
-const get_invoicesSQL = `
+const getInvoicesSQL = `
 SELECT id, user_id, amount, status, issued_at, due_at, paid_at
 FROM invoices
 WHERE (id = $1 OR $1 IS NULL)
@@ -20,7 +20,7 @@ WHERE (id = $1 OR $1 IS NULL)
 ORDER BY due_at ASC;`
 
 func (q *Queries) GetInvoices(ctx context.Context, params GetInvoicesParams) ([]models.Invoices, error) {
-	rows, err := q.db.Query(ctx, get_invoicesSQL, params.ID, params.UserID, params.Status)
+	rows, err := q.db.Query(ctx, getInvoicesSQL, params.ID, params.UserID, params.Status)
 	if err != nil {
 		return nil, err
 	}

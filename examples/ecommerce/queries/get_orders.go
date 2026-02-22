@@ -6,11 +6,11 @@ import (
 )
 
 type GetOrdersParams struct {
-	ID *int64 `json:"id,omitempty"`
+	ID         *int64 `json:"id,omitempty"`
 	CustomerID *int64 `json:"customer_id,omitempty"`
 }
 
-const get_ordersSQL = `
+const getOrdersSQL = `
 SELECT id, customer_id, shipping_address_id, billing_address_id,
        subtotal_cents, tax_cents, shipping_cents, total_cents, notes,
        created_at, updated_at
@@ -20,7 +20,7 @@ WHERE (id = $1 OR $1 IS NULL)
 ORDER BY created_at DESC;`
 
 func (q *Queries) GetOrders(ctx context.Context, params GetOrdersParams) ([]models.Orders, error) {
-	rows, err := q.db.Query(ctx, get_ordersSQL, params.ID, params.CustomerID)
+	rows, err := q.db.Query(ctx, getOrdersSQL, params.ID, params.CustomerID)
 	if err != nil {
 		return nil, err
 	}

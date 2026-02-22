@@ -7,13 +7,13 @@ import (
 )
 
 type GetPostWithCommentsRow struct {
-	ID *int64 `json:"id,omitempty"`
-	Title *string `json:"title,omitempty"`
-	Content *string `json:"content,omitempty"`
+	ID       *int64            `json:"id,omitempty"`
+	Title    *string           `json:"title,omitempty"`
+	Content  *string           `json:"content,omitempty"`
 	Comments []models.Comments `json:"comments,omitempty"`
 }
 
-const get_post_with_commentsSQL = `
+const getPostWithCommentsSQL = `
 SELECT
     p.id,
     p.title,
@@ -23,7 +23,7 @@ FROM posts p
 WHERE p.id = $1;`
 
 func (q *Queries) GetPostWithComments(ctx context.Context, id int64) (*GetPostWithCommentsRow, error) {
-	row := q.db.QueryRow(ctx, get_post_with_commentsSQL, id)
+	row := q.db.QueryRow(ctx, getPostWithCommentsSQL, id)
 
 	var result GetPostWithCommentsRow
 	var commentsJSON []byte

@@ -5,12 +5,12 @@ import (
 )
 
 type ComputeAndStoreTokenPathsParams struct {
-	ChainID int64 `json:"chain_id"`
+	ChainID        int64    `json:"chain_id"`
 	TokenAddresses []string `json:"token_addresses"`
-	TargetAddress string `json:"target_address"`
+	TargetAddress  string   `json:"target_address"`
 }
 
-const compute_and_store_token_pathsSQL = `
+const computeAndStoreTokenPathsSQL = `
 WITH RECURSIVE
 pair_graph AS (
     SELECT
@@ -65,6 +65,6 @@ ON CONFLICT (chain_id, contract_address, token_id, scope_address, name, block_nu
 DO UPDATE SET value = EXCLUDED.value;`
 
 func (q *Queries) ComputeAndStoreTokenPaths(ctx context.Context, params ComputeAndStoreTokenPathsParams) error {
-	_, err := q.db.Exec(ctx, compute_and_store_token_pathsSQL, params.ChainID, params.TokenAddresses, params.TargetAddress)
+	_, err := q.db.Exec(ctx, computeAndStoreTokenPathsSQL, params.ChainID, params.TokenAddresses, params.TargetAddress)
 	return err
 }

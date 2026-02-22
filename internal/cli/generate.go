@@ -10,7 +10,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/terminally-online/shrugged/internal/codegen"
-	"github.com/terminally-online/shrugged/internal/codegen/golang"
+	_ "github.com/terminally-online/shrugged/internal/codegen/golang"
 	"github.com/terminally-online/shrugged/internal/docker"
 	"github.com/terminally-online/shrugged/internal/introspect"
 	"github.com/terminally-online/shrugged/internal/parser"
@@ -125,7 +125,14 @@ Example:
 				modelsPackage := determineModelsPackage(outDir)
 				clean := cfg.GetClean(&flags)
 				fmt.Printf("Generating query bindings to %s...\n", queriesOutDir)
-				removed, err := golang.GenerateQueries(queries, queriesOutDir, modelsPackage, outDir, schema, clean)
+				removed, err := generator.GenerateQueries(codegen.QueryGenOptions{
+					Queries:       queries,
+					OutDir:        queriesOutDir,
+					ModelsPackage: modelsPackage,
+					ModelsDir:     outDir,
+					Schema:        schema,
+					Clean:         clean,
+				})
 				if err != nil {
 					return fmt.Errorf("failed to generate queries: %w", err)
 				}

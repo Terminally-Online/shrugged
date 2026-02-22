@@ -96,19 +96,19 @@ CREATE TABLE order_items (
     CONSTRAINT order_items_product_id_fkey FOREIGN KEY (product_id) REFERENCES products (id)
 );
 
-CREATE INDEX idx_addresses_customer_id ON addresses (customer_id);
+CREATE INDEX idx_addresses_customer_id ON public.addresses USING btree (customer_id);
 
-CREATE INDEX idx_order_items_order_id ON order_items (order_id);
+CREATE INDEX idx_order_items_order_id ON public.order_items USING btree (order_id);
 
-CREATE INDEX idx_order_items_product_id ON order_items (product_id);
+CREATE INDEX idx_order_items_product_id ON public.order_items USING btree (product_id);
 
-CREATE INDEX idx_orders_customer_id ON orders (customer_id);
+CREATE INDEX idx_orders_customer_id ON public.orders USING btree (customer_id);
 
-CREATE INDEX idx_products_category_id ON products (category_id);
+CREATE INDEX idx_products_category_id ON public.products USING btree (category_id);
 
-CREATE INDEX idx_products_is_active ON products (is_active) WHERE (is_active = true);
+CREATE INDEX idx_products_is_active ON public.products USING btree (is_active) WHERE (is_active = true);
 
-CREATE INDEX idx_products_tags ON products USING gin (tags);
+CREATE INDEX idx_products_tags ON public.products USING gin (tags);
 
 GRANT USAGE ON TYPE addresses TO PUBLIC;
 

@@ -1,10 +1,10 @@
 package models
 
-import "time"
+import (
+	"time"
+)
 
-type OrdersExtension struct {
-	Items *OrderItemsList `json:"items,omitempty"`
-}
+type OrdersExtension struct{}
 
 type Orders struct {
 	ID                int64      `json:"id"`

@@ -2,10 +2,27 @@ package queries
 
 import (
 	"context"
+	"encoding/json"
 	"example/ecommerce/models"
+	"time"
 )
 
-const get_order_with_itemsSQL = `
+type GetOrderWithItemsRow struct {
+	ID                *int64              `json:"id,omitempty"`
+	CustomerID        *int64              `json:"customer_id,omitempty"`
+	ShippingAddressID *int64              `json:"shipping_address_id,omitempty"`
+	BillingAddressID  *int64              `json:"billing_address_id,omitempty"`
+	SubtotalCents     *int64              `json:"subtotal_cents,omitempty"`
+	TaxCents          *int64              `json:"tax_cents,omitempty"`
+	ShippingCents     *int64              `json:"shipping_cents,omitempty"`
+	TotalCents        *int64              `json:"total_cents,omitempty"`
+	Notes             *string             `json:"notes,omitempty"`
+	CreatedAt         *time.Time          `json:"created_at,omitempty"`
+	UpdatedAt         *time.Time          `json:"updated_at,omitempty"`
+	Items             []models.OrderItems `json:"items,omitempty"`
+}
+
+const getOrderWithItemsSQL = `
 SELECT
     o.id,
     o.customer_id,
@@ -22,13 +39,21 @@ SELECT
 FROM orders o
 WHERE o.id = $1;`
 
-func (q *Queries) GetOrderWithItems(ctx context.Context, id int64) (*models.Orders, error) {
-	row := q.db.QueryRow(ctx, get_order_with_itemsSQL, id)
+func (q *Queries) GetOrderWithItems(ctx context.Context, id int64) (*GetOrderWithItemsRow, error) {
+	row := q.db.QueryRow(ctx, getOrderWithItemsSQL, id)
 
-	var result models.Orders
-	err := row.Scan(&result.ID, &result.CustomerID, &result.ShippingAddressID, &result.BillingAddressID, &result.SubtotalCents, &result.TaxCents, &result.ShippingCents, &result.TotalCents, &result.Notes, &result.CreatedAt, &result.UpdatedAt, &result.Items)
+	var result GetOrderWithItemsRow
+	var itemsJSON []byte
+
+	err := row.Scan(&result.ID, &result.CustomerID, &result.ShippingAddressID, &result.BillingAddressID, &result.SubtotalCents, &result.TaxCents, &result.ShippingCents, &result.TotalCents, &result.Notes, &result.CreatedAt, &result.UpdatedAt, &itemsJSON)
 	if err != nil {
 		return nil, err
+	}
+
+	if itemsJSON != nil {
+		if err := json.Unmarshal(itemsJSON, &result.Items); err != nil {
+			return nil, err
+		}
 	}
 
 	return &result, nil

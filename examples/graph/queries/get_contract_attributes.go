@@ -6,13 +6,13 @@ import (
 )
 
 type GetContractAttributesParams struct {
-	ChainID int64 `json:"chain_id"`
+	ChainID         int64  `json:"chain_id"`
 	ContractAddress string `json:"contract_address"`
-	TokenID string `json:"token_id"`
-	ScopeAddress string `json:"scope_address"`
+	TokenID         string `json:"token_id"`
+	ScopeAddress    string `json:"scope_address"`
 }
 
-const get_contract_attributesSQL = `
+const getContractAttributesSQL = `
 SELECT chain_id, contract_address, token_id, scope_address, name, value, block_number
 FROM contract_attribute
 WHERE chain_id = $1
@@ -22,7 +22,7 @@ WHERE chain_id = $1
 ORDER BY name, block_number DESC;`
 
 func (q *Queries) GetContractAttributes(ctx context.Context, params GetContractAttributesParams) ([]models.ContractAttribute, error) {
-	rows, err := q.db.Query(ctx, get_contract_attributesSQL, params.ChainID, params.ContractAddress, params.TokenID, params.ScopeAddress)
+	rows, err := q.db.Query(ctx, getContractAttributesSQL, params.ChainID, params.ContractAddress, params.TokenID, params.ScopeAddress)
 	if err != nil {
 		return nil, err
 	}

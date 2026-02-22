@@ -4,7 +4,7 @@ import (
 	"context"
 )
 
-const verify_user_emailSQL = `
+const verifyUserEmailSQL = `
 UPDATE users
 SET status = 'active',
     email_verified_at = NOW(),
@@ -12,6 +12,6 @@ SET status = 'active',
 WHERE id = $1;`
 
 func (q *Queries) VerifyUserEmail(ctx context.Context, id int64) error {
-	_, err := q.db.Exec(ctx, verify_user_emailSQL, id)
+	_, err := q.db.Exec(ctx, verifyUserEmailSQL, id)
 	return err
 }

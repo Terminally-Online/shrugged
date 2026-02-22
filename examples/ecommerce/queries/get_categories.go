@@ -6,11 +6,11 @@ import (
 )
 
 type GetCategoriesParams struct {
-	ID *int64 `json:"id,omitempty"`
+	ID       *int64 `json:"id,omitempty"`
 	ParentID *int64 `json:"parent_id,omitempty"`
 }
 
-const get_categoriesSQL = `
+const getCategoriesSQL = `
 SELECT id, parent_id, name, slug, description
 FROM categories
 WHERE (id = $1 OR $1 IS NULL)
@@ -18,7 +18,7 @@ WHERE (id = $1 OR $1 IS NULL)
 ORDER BY name;`
 
 func (q *Queries) GetCategories(ctx context.Context, params GetCategoriesParams) ([]models.Categories, error) {
-	rows, err := q.db.Query(ctx, get_categoriesSQL, params.ID, params.ParentID)
+	rows, err := q.db.Query(ctx, getCategoriesSQL, params.ID, params.ParentID)
 	if err != nil {
 		return nil, err
 	}

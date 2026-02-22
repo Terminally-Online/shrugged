@@ -5,14 +5,14 @@ import (
 	"example/ecommerce/models"
 )
 
-const get_customer_addressesSQL = `
+const getCustomerAddressesSQL = `
 SELECT id, customer_id, street_line_1, street_line_2, city, state, postal_code, country, is_default, created_at
 FROM addresses
 WHERE customer_id = $1
 ORDER BY is_default DESC, created_at DESC;`
 
-func (q *Queries) GetCustomerAddresses(ctx context.Context, customer_id int64) ([]models.Addresses, error) {
-	rows, err := q.db.Query(ctx, get_customer_addressesSQL, customer_id)
+func (q *Queries) GetCustomerAddresses(ctx context.Context, customerID int64) ([]models.Addresses, error) {
+	rows, err := q.db.Query(ctx, getCustomerAddressesSQL, customerID)
 	if err != nil {
 		return nil, err
 	}

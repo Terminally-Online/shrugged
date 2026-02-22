@@ -2,16 +2,33 @@ package queries
 
 import (
 	"context"
-	"example/graph/models"
+	"encoding/json"
 )
 
-type GetContractWithAttributesParams struct {
-	ChainID int64 `json:"chain_id"`
-	ContractAddress string `json:"contract_address"`
-	TokenID string `json:"token_id"`
+type GetContractWithAttributesRow struct {
+	ChainID         *int64          `json:"chain_id,omitempty"`
+	ContractAddress *string         `json:"contract_address,omitempty"`
+	TokenID         *string         `json:"token_id,omitempty"`
+	Standard        *string         `json:"standard,omitempty"`
+	Protocol        *string         `json:"protocol,omitempty"`
+	Name            *string         `json:"name,omitempty"`
+	Symbol          *string         `json:"symbol,omitempty"`
+	Decimals        *int64          `json:"decimals,omitempty"`
+	Icon            *string         `json:"icon,omitempty"`
+	Description     *string         `json:"description,omitempty"`
+	Verified        *bool           `json:"verified,omitempty"`
+	Color           *string         `json:"color,omitempty"`
+	Attributes      json.RawMessage `json:"attributes,omitempty"`
+	Media           json.RawMessage `json:"media,omitempty"`
 }
 
-const get_contract_with_attributesSQL = `
+type GetContractWithAttributesParams struct {
+	ChainID         int64  `json:"chain_id"`
+	ContractAddress string `json:"contract_address"`
+	TokenID         string `json:"token_id"`
+}
+
+const getContractWithAttributesSQL = `
 SELECT
     c.chain_id, c.contract_address, c.token_id, c.standard, c.protocol,
     c.name, c.symbol, c.decimals, c.icon, c.description, c.verified, c.color,
@@ -39,10 +56,10 @@ WHERE c.chain_id = $1
 GROUP BY c.chain_id, c.contract_address, c.token_id, c.standard, c.protocol,
     c.name, c.symbol, c.decimals, c.icon, c.description, c.verified, c.color;`
 
-func (q *Queries) GetContractWithAttributes(ctx context.Context, params GetContractWithAttributesParams) (*models.Contract, error) {
-	row := q.db.QueryRow(ctx, get_contract_with_attributesSQL, params.ChainID, params.ContractAddress, params.TokenID)
+func (q *Queries) GetContractWithAttributes(ctx context.Context, params GetContractWithAttributesParams) (*GetContractWithAttributesRow, error) {
+	row := q.db.QueryRow(ctx, getContractWithAttributesSQL, params.ChainID, params.ContractAddress, params.TokenID)
 
-	var result models.Contract
+	var result GetContractWithAttributesRow
 	err := row.Scan(&result.ChainID, &result.ContractAddress, &result.TokenID, &result.Standard, &result.Protocol, &result.Name, &result.Symbol, &result.Decimals, &result.Icon, &result.Description, &result.Verified, &result.Color, &result.Attributes, &result.Media)
 	if err != nil {
 		return nil, err

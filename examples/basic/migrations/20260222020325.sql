@@ -41,13 +41,13 @@ CREATE TABLE comments (
     CONSTRAINT comments_user_id_fkey FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 );
 
-CREATE INDEX idx_comments_post_id ON comments (post_id);
+CREATE INDEX idx_comments_post_id ON public.comments USING btree (post_id);
 
-CREATE INDEX idx_comments_user_id ON comments (user_id);
+CREATE INDEX idx_comments_user_id ON public.comments USING btree (user_id);
 
-CREATE INDEX idx_posts_published ON posts (published) WHERE (published = true);
+CREATE INDEX idx_posts_published ON public.posts USING btree (published) WHERE (published = true);
 
-CREATE INDEX idx_posts_user_id ON posts (user_id);
+CREATE INDEX idx_posts_user_id ON public.posts USING btree (user_id);
 
 GRANT USAGE ON TYPE comments TO PUBLIC;
 
