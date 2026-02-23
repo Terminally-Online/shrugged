@@ -484,7 +484,7 @@ func generateQueryFunction(rq resolvedQuery, modelsPackage string, needsResultSt
 
 	if useParamsStruct {
 		paramsStructName := rq.Name + "Params"
-		params = append(params, fmt.Sprintf("params %s", paramsStructName))
+		params = append(params, fmt.Sprintf("params *%s", paramsStructName))
 	} else {
 		for _, p := range rq.Parameters {
 			paramType := p.GoType
