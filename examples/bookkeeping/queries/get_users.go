@@ -20,7 +20,7 @@ WHERE (id = $1 OR $1 IS NULL)
   AND (status = $3 OR $3 IS NULL)
 ORDER BY created_at DESC;`
 
-func (q *Queries) GetUsers(ctx context.Context, params GetUsersParams) ([]models.Users, error) {
+func (q *Queries) GetUsers(ctx context.Context, params *GetUsersParams) ([]models.Users, error) {
 	rows, err := q.db.Query(ctx, getUsersSQL, params.ID, params.Role, params.Status)
 	if err != nil {
 		return nil, err

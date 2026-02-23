@@ -18,7 +18,7 @@ INSERT INTO order_items (order_id, product_id, quantity, unit_price_cents, total
 VALUES ($1, $2, $3, $4, $5)
 RETURNING id, order_id, product_id, quantity, unit_price_cents, total_cents;`
 
-func (q *Queries) CreateOrderItem(ctx context.Context, params CreateOrderItemParams) (*models.OrderItems, error) {
+func (q *Queries) CreateOrderItem(ctx context.Context, params *CreateOrderItemParams) (*models.OrderItems, error) {
 	row := q.db.QueryRow(ctx, createOrderItemSQL, params.OrderID, params.ProductID, params.Quantity, params.UnitPriceCents, params.TotalCents)
 
 	var result models.OrderItems

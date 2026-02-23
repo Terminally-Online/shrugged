@@ -16,7 +16,7 @@ SELECT chain_id, contract_address, token_id, standard, protocol, name, symbol, d
 FROM contract
 WHERE chain_id = $1 AND contract_address = $2 AND token_id = $3;`
 
-func (q *Queries) GetContract(ctx context.Context, params GetContractParams) (*models.Contract, error) {
+func (q *Queries) GetContract(ctx context.Context, params *GetContractParams) (*models.Contract, error) {
 	row := q.db.QueryRow(ctx, getContractSQL, params.ChainID, params.ContractAddress, params.TokenID)
 
 	var result models.Contract

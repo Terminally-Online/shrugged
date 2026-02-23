@@ -17,7 +17,7 @@ SET name = COALESCE($1, name),
     updated_at = NOW()
 WHERE id = $3;`
 
-func (q *Queries) UpdateUser(ctx context.Context, params UpdateUserParams) error {
+func (q *Queries) UpdateUser(ctx context.Context, params *UpdateUserParams) error {
 	_, err := q.db.Exec(ctx, updateUserSQL, params.Name, params.Bio, params.ID)
 	return err
 }

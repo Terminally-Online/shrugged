@@ -64,7 +64,7 @@ FROM shortest_paths
 ON CONFLICT (chain_id, contract_address, token_id, scope_address, name, block_number)
 DO UPDATE SET value = EXCLUDED.value;`
 
-func (q *Queries) ComputeAndStoreTokenPaths(ctx context.Context, params ComputeAndStoreTokenPathsParams) error {
+func (q *Queries) ComputeAndStoreTokenPaths(ctx context.Context, params *ComputeAndStoreTokenPathsParams) error {
 	_, err := q.db.Exec(ctx, computeAndStoreTokenPathsSQL, params.ChainID, params.TokenAddresses, params.TargetAddress)
 	return err
 }

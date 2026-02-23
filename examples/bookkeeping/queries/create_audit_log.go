@@ -22,7 +22,7 @@ INSERT INTO audit_log (user_id, action, resource_type, resource_id, old_values, 
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 RETURNING id, user_id, action, resource_type, resource_id, old_values, new_values, ip_address, user_agent, created_at;`
 
-func (q *Queries) CreateAuditLog(ctx context.Context, params CreateAuditLogParams) (*models.AuditLog, error) {
+func (q *Queries) CreateAuditLog(ctx context.Context, params *CreateAuditLogParams) (*models.AuditLog, error) {
 	row := q.db.QueryRow(ctx, createAuditLogSQL, params.UserID, params.Action, params.ResourceType, params.ResourceID, params.OldValues, params.NewValues, params.IPAddress, params.UserAgent)
 
 	var result models.AuditLog

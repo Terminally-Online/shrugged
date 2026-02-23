@@ -24,7 +24,7 @@ WHERE chain_id = $1
 ORDER BY block_number DESC
 LIMIT 1;`
 
-func (q *Queries) GetContractAttribute(ctx context.Context, params GetContractAttributeParams) (*models.ContractAttribute, error) {
+func (q *Queries) GetContractAttribute(ctx context.Context, params *GetContractAttributeParams) (*models.ContractAttribute, error) {
 	row := q.db.QueryRow(ctx, getContractAttributeSQL, params.ChainID, params.ContractAddress, params.TokenID, params.ScopeAddress, params.Name)
 
 	var result models.ContractAttribute

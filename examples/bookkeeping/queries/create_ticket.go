@@ -22,7 +22,7 @@ INSERT INTO tickets (user_id, assignee_id, priority, status, title, description,
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 RETURNING id, user_id, assignee_id, priority, status, title, description, tags, due_date, created_at, updated_at, resolved_at;`
 
-func (q *Queries) CreateTicket(ctx context.Context, params CreateTicketParams) (*models.Tickets, error) {
+func (q *Queries) CreateTicket(ctx context.Context, params *CreateTicketParams) (*models.Tickets, error) {
 	row := q.db.QueryRow(ctx, createTicketSQL, params.UserID, params.AssigneeID, params.Priority, params.Status, params.Title, params.Description, params.Tags, params.DueDate)
 
 	var result models.Tickets

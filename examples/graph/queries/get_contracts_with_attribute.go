@@ -38,7 +38,7 @@ WHERE c.chain_id = $1
   AND a.name = $2
   AND ($3 = '' OR a.value = $3);`
 
-func (q *Queries) GetContractsWithAttribute(ctx context.Context, params GetContractsWithAttributeParams) ([]GetContractsWithAttributeRow, error) {
+func (q *Queries) GetContractsWithAttribute(ctx context.Context, params *GetContractsWithAttributeParams) ([]GetContractsWithAttributeRow, error) {
 	rows, err := q.db.Query(ctx, getContractsWithAttributeSQL, params.ChainID, params.AttributeName, params.AttributeValue)
 	if err != nil {
 		return nil, err

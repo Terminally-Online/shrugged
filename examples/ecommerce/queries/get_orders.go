@@ -19,7 +19,7 @@ WHERE (id = $1 OR $1 IS NULL)
   AND (customer_id = $2 OR $2 IS NULL)
 ORDER BY created_at DESC;`
 
-func (q *Queries) GetOrders(ctx context.Context, params GetOrdersParams) ([]models.Orders, error) {
+func (q *Queries) GetOrders(ctx context.Context, params *GetOrdersParams) ([]models.Orders, error) {
 	rows, err := q.db.Query(ctx, getOrdersSQL, params.ID, params.CustomerID)
 	if err != nil {
 		return nil, err

@@ -17,7 +17,7 @@ WHERE (id = $1 OR $1 IS NULL)
   AND (email = $2 OR $2 IS NULL)
 ORDER BY created_at DESC;`
 
-func (q *Queries) GetCustomers(ctx context.Context, params GetCustomersParams) ([]models.Customers, error) {
+func (q *Queries) GetCustomers(ctx context.Context, params *GetCustomersParams) ([]models.Customers, error) {
 	rows, err := q.db.Query(ctx, getCustomersSQL, params.ID, params.Email)
 	if err != nil {
 		return nil, err

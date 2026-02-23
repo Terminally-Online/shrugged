@@ -18,7 +18,7 @@ WHERE chain_id = $1
   AND asset_contract_address = $3
   AND relationship_type = $4;`
 
-func (q *Queries) DeleteContractRelationship(ctx context.Context, params DeleteContractRelationshipParams) error {
+func (q *Queries) DeleteContractRelationship(ctx context.Context, params *DeleteContractRelationshipParams) error {
 	_, err := q.db.Exec(ctx, deleteContractRelationshipSQL, params.ChainID, params.ContractAddress, params.AssetContractAddress, params.RelationshipType)
 	return err
 }

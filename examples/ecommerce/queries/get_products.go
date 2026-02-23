@@ -20,7 +20,7 @@ WHERE (id = $1 OR $1 IS NULL)
   AND (is_active = $3 OR $3 IS NULL)
 ORDER BY created_at DESC;`
 
-func (q *Queries) GetProducts(ctx context.Context, params GetProductsParams) ([]models.Products, error) {
+func (q *Queries) GetProducts(ctx context.Context, params *GetProductsParams) ([]models.Products, error) {
 	rows, err := q.db.Query(ctx, getProductsSQL, params.ID, params.CategoryID, params.IsActive)
 	if err != nil {
 		return nil, err

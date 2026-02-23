@@ -16,7 +16,7 @@ SET status = $1,
     updated_at = NOW()
 WHERE id = $2;`
 
-func (q *Queries) UpdateUserStatus(ctx context.Context, params UpdateUserStatusParams) error {
+func (q *Queries) UpdateUserStatus(ctx context.Context, params *UpdateUserStatusParams) error {
 	_, err := q.db.Exec(ctx, updateUserStatusSQL, params.Status, params.ID)
 	return err
 }

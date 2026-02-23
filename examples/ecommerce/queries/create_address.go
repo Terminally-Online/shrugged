@@ -21,7 +21,7 @@ INSERT INTO addresses (customer_id, street_line_1, street_line_2, city, state, p
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 RETURNING id, customer_id, street_line_1, street_line_2, city, state, postal_code, country, is_default, created_at;`
 
-func (q *Queries) CreateAddress(ctx context.Context, params CreateAddressParams) (*models.Addresses, error) {
+func (q *Queries) CreateAddress(ctx context.Context, params *CreateAddressParams) (*models.Addresses, error) {
 	row := q.db.QueryRow(ctx, createAddressSQL, params.CustomerID, params.StreetLine1, params.StreetLine2, params.City, params.State, params.PostalCode, params.Country, params.IsDefault)
 
 	var result models.Addresses

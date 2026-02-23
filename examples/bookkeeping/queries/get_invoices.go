@@ -19,7 +19,7 @@ WHERE (id = $1 OR $1 IS NULL)
   AND (status = $3 OR $3 IS NULL)
 ORDER BY due_at ASC;`
 
-func (q *Queries) GetInvoices(ctx context.Context, params GetInvoicesParams) ([]models.Invoices, error) {
+func (q *Queries) GetInvoices(ctx context.Context, params *GetInvoicesParams) ([]models.Invoices, error) {
 	rows, err := q.db.Query(ctx, getInvoicesSQL, params.ID, params.UserID, params.Status)
 	if err != nil {
 		return nil, err

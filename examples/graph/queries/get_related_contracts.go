@@ -31,7 +31,7 @@ FROM contract_relationship r
 JOIN contract c ON c.chain_id = r.chain_id AND c.contract_address = r.asset_contract_address AND c.token_id = ''
 WHERE r.chain_id = $1 AND r.contract_address = $2;`
 
-func (q *Queries) GetRelatedContracts(ctx context.Context, params GetRelatedContractsParams) ([]GetRelatedContractsRow, error) {
+func (q *Queries) GetRelatedContracts(ctx context.Context, params *GetRelatedContractsParams) ([]GetRelatedContractsRow, error) {
 	rows, err := q.db.Query(ctx, getRelatedContractsSQL, params.ChainID, params.ContractAddress)
 	if err != nil {
 		return nil, err

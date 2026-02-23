@@ -14,7 +14,7 @@ const deleteContractSQL = `
 DELETE FROM contract
 WHERE chain_id = $1 AND contract_address = $2 AND token_id = $3;`
 
-func (q *Queries) DeleteContract(ctx context.Context, params DeleteContractParams) error {
+func (q *Queries) DeleteContract(ctx context.Context, params *DeleteContractParams) error {
 	_, err := q.db.Exec(ctx, deleteContractSQL, params.ChainID, params.ContractAddress, params.TokenID)
 	return err
 }

@@ -56,7 +56,7 @@ WHERE c.chain_id = $1
 GROUP BY c.chain_id, c.contract_address, c.token_id, c.standard, c.protocol,
     c.name, c.symbol, c.decimals, c.icon, c.description, c.verified, c.color;`
 
-func (q *Queries) GetContractWithAttributes(ctx context.Context, params GetContractWithAttributesParams) (*GetContractWithAttributesRow, error) {
+func (q *Queries) GetContractWithAttributes(ctx context.Context, params *GetContractWithAttributesParams) (*GetContractWithAttributesRow, error) {
 	row := q.db.QueryRow(ctx, getContractWithAttributesSQL, params.ChainID, params.ContractAddress, params.TokenID)
 
 	var result GetContractWithAttributesRow

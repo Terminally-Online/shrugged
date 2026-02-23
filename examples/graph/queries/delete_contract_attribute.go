@@ -20,7 +20,7 @@ WHERE chain_id = $1
   AND scope_address = $4
   AND name = $5;`
 
-func (q *Queries) DeleteContractAttribute(ctx context.Context, params DeleteContractAttributeParams) error {
+func (q *Queries) DeleteContractAttribute(ctx context.Context, params *DeleteContractAttributeParams) error {
 	_, err := q.db.Exec(ctx, deleteContractAttributeSQL, params.ChainID, params.ContractAddress, params.TokenID, params.ScopeAddress, params.Name)
 	return err
 }

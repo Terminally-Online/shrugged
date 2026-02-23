@@ -17,7 +17,7 @@ WHERE (id = $1 OR $1 IS NULL)
   AND (parent_id = $2 OR $2 IS NULL)
 ORDER BY name;`
 
-func (q *Queries) GetCategories(ctx context.Context, params GetCategoriesParams) ([]models.Categories, error) {
+func (q *Queries) GetCategories(ctx context.Context, params *GetCategoriesParams) ([]models.Categories, error) {
 	rows, err := q.db.Query(ctx, getCategoriesSQL, params.ID, params.ParentID)
 	if err != nil {
 		return nil, err

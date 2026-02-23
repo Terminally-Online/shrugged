@@ -34,7 +34,7 @@ WHERE r.chain_id = $1
   AND r.relationship_type IN ('token:0', 'token:1')
 ORDER BY r.relationship_type;`
 
-func (q *Queries) GetPairTokens(ctx context.Context, params GetPairTokensParams) ([]GetPairTokensRow, error) {
+func (q *Queries) GetPairTokens(ctx context.Context, params *GetPairTokensParams) ([]GetPairTokensRow, error) {
 	rows, err := q.db.Query(ctx, getPairTokensSQL, params.ChainID, params.PairAddress)
 	if err != nil {
 		return nil, err

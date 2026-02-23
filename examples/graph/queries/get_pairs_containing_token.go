@@ -20,7 +20,7 @@ WHERE cr.chain_id = $1
   AND cr.asset_contract_address = $2
   AND cr.relationship_type IN ('token:0', 'token:1');`
 
-func (q *Queries) GetPairsContainingToken(ctx context.Context, params GetPairsContainingTokenParams) ([]GetPairsContainingTokenRow, error) {
+func (q *Queries) GetPairsContainingToken(ctx context.Context, params *GetPairsContainingTokenParams) ([]GetPairsContainingTokenRow, error) {
 	rows, err := q.db.Query(ctx, getPairsContainingTokenSQL, params.ChainID, params.TokenAddress)
 	if err != nil {
 		return nil, err

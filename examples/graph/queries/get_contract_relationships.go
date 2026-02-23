@@ -15,7 +15,7 @@ SELECT chain_id, contract_address, asset_contract_address, relationship_type
 FROM contract_relationship
 WHERE chain_id = $1 AND contract_address = $2;`
 
-func (q *Queries) GetContractRelationships(ctx context.Context, params GetContractRelationshipsParams) ([]models.ContractRelationship, error) {
+func (q *Queries) GetContractRelationships(ctx context.Context, params *GetContractRelationshipsParams) ([]models.ContractRelationship, error) {
 	rows, err := q.db.Query(ctx, getContractRelationshipsSQL, params.ChainID, params.ContractAddress)
 	if err != nil {
 		return nil, err

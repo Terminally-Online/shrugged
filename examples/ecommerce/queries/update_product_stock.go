@@ -15,7 +15,7 @@ SET quantity_in_stock = $1,
     updated_at = NOW()
 WHERE id = $2;`
 
-func (q *Queries) UpdateProductStock(ctx context.Context, params UpdateProductStockParams) error {
+func (q *Queries) UpdateProductStock(ctx context.Context, params *UpdateProductStockParams) error {
 	_, err := q.db.Exec(ctx, updateProductStockSQL, params.QuantityInStock, params.ID)
 	return err
 }

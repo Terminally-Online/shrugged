@@ -21,7 +21,7 @@ INSERT INTO orders (customer_id, shipping_address_id, billing_address_id, subtot
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 RETURNING id, customer_id, shipping_address_id, billing_address_id, subtotal_cents, tax_cents, shipping_cents, total_cents, notes, created_at, updated_at;`
 
-func (q *Queries) CreateOrder(ctx context.Context, params CreateOrderParams) (*models.Orders, error) {
+func (q *Queries) CreateOrder(ctx context.Context, params *CreateOrderParams) (*models.Orders, error) {
 	row := q.db.QueryRow(ctx, createOrderSQL, params.CustomerID, params.ShippingAddressID, params.BillingAddressID, params.SubtotalCents, params.TaxCents, params.ShippingCents, params.TotalCents, params.Notes)
 
 	var result models.Orders

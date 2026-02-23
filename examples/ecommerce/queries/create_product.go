@@ -23,7 +23,7 @@ INSERT INTO products (category_id, sku, name, description, price_cents, quantity
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 RETURNING id, category_id, sku, name, description, price_cents, quantity_in_stock, weight_grams, is_active, metadata, tags, created_at, updated_at;`
 
-func (q *Queries) CreateProduct(ctx context.Context, params CreateProductParams) (*models.Products, error) {
+func (q *Queries) CreateProduct(ctx context.Context, params *CreateProductParams) (*models.Products, error) {
 	row := q.db.QueryRow(ctx, createProductSQL, params.CategoryID, params.Sku, params.Name, params.Description, params.PriceCents, params.QuantityInStock, params.WeightGrams, params.Metadata, params.Tags)
 
 	var result models.Products

@@ -34,7 +34,7 @@ DO UPDATE SET
     verified = EXCLUDED.verified,
     color = EXCLUDED.color;`
 
-func (q *Queries) UpsertContract(ctx context.Context, params UpsertContractParams) error {
+func (q *Queries) UpsertContract(ctx context.Context, params *UpsertContractParams) error {
 	_, err := q.db.Exec(ctx, upsertContractSQL, params.ChainID, params.ContractAddress, params.TokenID, params.Standard, params.Protocol, params.Name, params.Symbol, params.Decimals, params.Icon, params.Description, params.Verified, params.Color)
 	return err
 }

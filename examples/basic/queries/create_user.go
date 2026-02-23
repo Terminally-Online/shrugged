@@ -16,7 +16,7 @@ INSERT INTO users (email, name, bio)
 VALUES ($1, $2, $3)
 RETURNING id, email, name, bio, created_at, updated_at;`
 
-func (q *Queries) CreateUser(ctx context.Context, params CreateUserParams) (*models.Users, error) {
+func (q *Queries) CreateUser(ctx context.Context, params *CreateUserParams) (*models.Users, error) {
 	row := q.db.QueryRow(ctx, createUserSQL, params.Email, params.Name, params.Bio)
 
 	var result models.Users

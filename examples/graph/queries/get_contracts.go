@@ -21,7 +21,7 @@ WHERE chain_id = $1
   AND ($4::BOOLEAN IS NULL OR verified = $4)
 ORDER BY name;`
 
-func (q *Queries) GetContracts(ctx context.Context, params GetContractsParams) ([]models.Contract, error) {
+func (q *Queries) GetContracts(ctx context.Context, params *GetContractsParams) ([]models.Contract, error) {
 	rows, err := q.db.Query(ctx, getContractsSQL, params.ChainID, params.Standard, params.Protocol, params.Verified)
 	if err != nil {
 		return nil, err

@@ -21,7 +21,7 @@ WHERE chain_id = $1
   AND ($4 = '' OR scope_address = $4)
 ORDER BY name, block_number DESC;`
 
-func (q *Queries) GetContractAttributes(ctx context.Context, params GetContractAttributesParams) ([]models.ContractAttribute, error) {
+func (q *Queries) GetContractAttributes(ctx context.Context, params *GetContractAttributesParams) ([]models.ContractAttribute, error) {
 	rows, err := q.db.Query(ctx, getContractAttributesSQL, params.ChainID, params.ContractAddress, params.TokenID, params.ScopeAddress)
 	if err != nil {
 		return nil, err

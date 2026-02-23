@@ -31,7 +31,7 @@ ORDER BY
     END,
     created_at DESC;`
 
-func (q *Queries) GetTickets(ctx context.Context, params GetTicketsParams) ([]models.Tickets, error) {
+func (q *Queries) GetTickets(ctx context.Context, params *GetTicketsParams) ([]models.Tickets, error) {
 	rows, err := q.db.Query(ctx, getTicketsSQL, params.ID, params.UserID, params.AssigneeID, params.Priority, params.Status)
 	if err != nil {
 		return nil, err

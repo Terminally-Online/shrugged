@@ -17,7 +17,7 @@ INSERT INTO customers (email, first_name, last_name, phone)
 VALUES ($1, $2, $3, $4)
 RETURNING id, email, first_name, last_name, phone, created_at;`
 
-func (q *Queries) CreateCustomer(ctx context.Context, params CreateCustomerParams) (*models.Customers, error) {
+func (q *Queries) CreateCustomer(ctx context.Context, params *CreateCustomerParams) (*models.Customers, error) {
 	row := q.db.QueryRow(ctx, createCustomerSQL, params.Email, params.FirstName, params.LastName, params.Phone)
 
 	var result models.Customers

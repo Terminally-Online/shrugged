@@ -21,7 +21,7 @@ WHERE (user_id = $1 OR $1 IS NULL)
 ORDER BY created_at DESC
 LIMIT 100;`
 
-func (q *Queries) GetAuditLog(ctx context.Context, params GetAuditLogParams) ([]models.AuditLog, error) {
+func (q *Queries) GetAuditLog(ctx context.Context, params *GetAuditLogParams) ([]models.AuditLog, error) {
 	rows, err := q.db.Query(ctx, getAuditLogSQL, params.UserID, params.ResourceType, params.ResourceID)
 	if err != nil {
 		return nil, err

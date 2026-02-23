@@ -17,7 +17,7 @@ INSERT INTO categories (parent_id, name, slug, description)
 VALUES ($1, $2, $3, $4)
 RETURNING id, parent_id, name, slug, description;`
 
-func (q *Queries) CreateCategory(ctx context.Context, params CreateCategoryParams) (*models.Categories, error) {
+func (q *Queries) CreateCategory(ctx context.Context, params *CreateCategoryParams) (*models.Categories, error) {
 	row := q.db.QueryRow(ctx, createCategorySQL, params.ParentID, params.Name, params.Slug, params.Description)
 
 	var result models.Categories

@@ -19,7 +19,7 @@ WHERE (id = $1 OR $1 IS NULL)
   AND (published = $3 OR $3 IS NULL)
 ORDER BY created_at DESC;`
 
-func (q *Queries) GetPosts(ctx context.Context, params GetPostsParams) ([]models.Posts, error) {
+func (q *Queries) GetPosts(ctx context.Context, params *GetPostsParams) ([]models.Posts, error) {
 	rows, err := q.db.Query(ctx, getPostsSQL, params.ID, params.UserID, params.Published)
 	if err != nil {
 		return nil, err
