@@ -36,28 +36,30 @@ func ParseQueryFile(path string) (*QueryFile, error) {
 }
 
 func ParseQueryDirectory(dirPath string) ([]*QueryFile, error) {
-	entries, err := os.ReadDir(dirPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read query directory %s: %w", dirPath, err)
-	}
-
 	var files []*QueryFile
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
+
+	err := filepath.WalkDir(dirPath, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
 		}
-		if !strings.HasSuffix(entry.Name(), ".sql") {
-			continue
+		if d.IsDir() {
+			return nil
+		}
+		if !strings.HasSuffix(d.Name(), ".sql") {
+			return nil
 		}
 
-		filePath := filepath.Join(dirPath, entry.Name())
-		qf, err := ParseQueryFile(filePath)
+		qf, err := ParseQueryFile(path)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		if len(qf.Queries) > 0 {
 			files = append(files, qf)
 		}
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to walk query directory %s: %w", dirPath, err)
 	}
 
 	sort.Slice(files, func(i, j int) bool {
