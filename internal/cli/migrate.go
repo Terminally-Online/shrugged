@@ -57,7 +57,7 @@ then diffs against the desired schema to produce a new migration.`,
 			return err
 		}
 
-		schemaSQL, err := parser.LoadFile(schemaFile)
+		schemaSQL, err := parser.LoadSchema(schemaFile)
 		if err != nil {
 			s.Stop()
 			return fmt.Errorf("failed to load schema file: %w", err)

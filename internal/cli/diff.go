@@ -56,7 +56,7 @@ This spins up a temporary Postgres container, applies all migrations to get the
 			return err
 		}
 
-		schemaSQL, err := parser.LoadFile(schemaFile)
+		schemaSQL, err := parser.LoadSchema(schemaFile)
 		if err != nil {
 			s.Stop()
 			return fmt.Errorf("failed to load schema file: %w", err)

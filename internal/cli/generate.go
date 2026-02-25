@@ -57,7 +57,7 @@ Example:
 				return fmt.Errorf("schema file is required when no database URL is provided")
 			}
 
-			schemaSQL, err := parser.LoadFile(schemaFile)
+			schemaSQL, err := parser.LoadSchema(schemaFile)
 			if err != nil {
 				return fmt.Errorf("failed to load schema file: %w", err)
 			}

@@ -25,7 +25,7 @@ the configured Postgres version.`,
 		postgresVersion := cfg.GetPostgresVersion(&flags)
 		schemaFile := cfg.GetSchema(&flags)
 
-		schemaSQL, err := parser.LoadFile(schemaFile)
+		schemaSQL, err := parser.LoadSchema(schemaFile)
 		if err != nil {
 			return fmt.Errorf("failed to load schema file: %w", err)
 		}
