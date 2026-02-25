@@ -3,14 +3,26 @@ package golang
 import "strings"
 
 var commonInitialisms = map[string]bool{
-	"ACL": true, "API": true, "ASCII": true, "CPU": true, "CSS": true,
-	"DNS": true, "EOF": true, "GUID": true, "HTML": true, "HTTP": true,
-	"HTTPS": true, "ID": true, "IP": true, "JSON": true, "LHS": true,
-	"QPS": true, "RAM": true, "RHS": true, "RPC": true, "SLA": true,
-	"SMTP": true, "SQL": true, "SSH": true, "SSL": true, "TCP": true,
-	"TLS": true, "TTL": true, "UDP": true, "UI": true, "UID": true,
-	"UUID": true, "URI": true, "URL": true, "UTF8": true, "VM": true,
-	"XML": true, "XMPP": true, "XSRF": true, "XSS": true,
+	"ACL": true, "API": true, "ASCII": true, "AUTH": true, "AWS": true,
+	"CDN": true, "CIDR": true, "CLI": true, "CORS": true, "CPU": true,
+	"CSS": true, "CSV": true, "DB": true, "DHCP": true, "DNS": true,
+	"DOM": true, "DSN": true, "EOF": true, "FTP": true, "GCP": true,
+	"GCS": true, "GPU": true, "GRPC": true, "GUID": true, "HMAC": true,
+	"HTML": true, "HTTP": true, "HTTPS": true, "ID": true, "IMAP": true,
+	"IOT": true, "IP": true, "JPEG": true, "JSON": true, "JWT": true,
+	"KMS": true, "KV": true, "LDAP": true, "LHS": true, "MAC": true,
+	"MD5": true, "MFA": true, "MQTT": true, "NAT": true, "NFS": true,
+	"OAUTH": true, "OIDC": true, "OS": true, "PDF": true, "PEM": true,
+	"PGP": true, "PNG": true, "QPS": true, "QUIC": true, "RAM": true,
+	"RBAC": true, "REST": true, "RHS": true, "RPC": true, "RSA": true,
+	"S3": true, "SAML": true, "SDK": true, "SFTP": true, "SHA": true,
+	"SLA": true, "SMTP": true, "SNMP": true, "SNS": true, "SQL": true,
+	"SQS": true, "SSD": true, "SSH": true, "SSL": true, "SSO": true,
+	"SVG": true, "TCP": true, "TLS": true, "TOML": true, "TSV": true,
+	"TTL": true, "UDP": true, "UI": true, "UID": true, "URI": true,
+	"URL": true, "UTC": true, "UTF8": true, "UUID": true, "VM": true,
+	"VPC": true, "VPN": true, "WASM": true, "WSS": true, "XML": true,
+	"XMPP": true, "XSRF": true, "XSS": true, "YAML": true,
 }
 
 func isCommonInitialism(s string) bool {
