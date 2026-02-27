@@ -29,6 +29,8 @@ No cloud dependencies. No paywalled features. Just migrations.
 * [shrugged migrate](shrugged_migrate.md)	 - Generate a migration from schema differences
 * [shrugged rollback](shrugged_rollback.md)	 - Rollback the last applied migration(s)
 * [shrugged status](shrugged_status.md)	 - Show migration status
+* [shrugged sum](shrugged_sum.md)	 - Regenerate the sum file from migration files
+* [shrugged update](shrugged_update.md)	 - Update shrugged to the latest release
 * [shrugged validate](shrugged_validate.md)	 - Validate the schema file
 * [shrugged version](shrugged_version.md)	 - Print the version number
 
