@@ -78,6 +78,7 @@ func init() {
 	rootCmd.AddCommand(validateCmd)
 	rootCmd.AddCommand(statusCmd)
 	rootCmd.AddCommand(generateCmd)
+	rootCmd.AddCommand(sumCmd)
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(updateCmd)
 }

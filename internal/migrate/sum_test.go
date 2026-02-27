@@ -247,6 +247,136 @@ func TestUpdateSum(t *testing.T) {
 	}
 }
 
+func TestUpdateSum_ReconcilesStaleSumFile(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "sum_test")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer func() { _ = os.RemoveAll(tmpDir) }()
+
+	if err := os.WriteFile(filepath.Join(tmpDir, "001_first.sql"), []byte("CREATE TABLE first (id INT);"), 0644); err != nil {
+		t.Fatalf("failed to write file: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(tmpDir, "002_second.sql"), []byte("CREATE TABLE second (id INT);"), 0644); err != nil {
+		t.Fatalf("failed to write file: %v", err)
+	}
+
+	if err := UpdateSum(tmpDir); err != nil {
+		t.Fatalf("UpdateSum() error = %v", err)
+	}
+
+	_, entriesBefore, err := ReadSum(tmpDir)
+	if err != nil {
+		t.Fatalf("ReadSum() error = %v", err)
+	}
+	if len(entriesBefore) != 2 {
+		t.Fatalf("expected 2 entries before, got %d", len(entriesBefore))
+	}
+
+	if err := os.WriteFile(filepath.Join(tmpDir, "003_third.sql"), []byte("CREATE TABLE third (id INT);"), 0644); err != nil {
+		t.Fatalf("failed to write file: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(tmpDir, "003_third.down.sql"), []byte("DROP TABLE third;"), 0644); err != nil {
+		t.Fatalf("failed to write file: %v", err)
+	}
+
+	if err := ValidateSum(tmpDir); err != nil {
+		t.Errorf("ValidateSum() should not error when new files are added (only detects modifications), got: %v", err)
+	}
+
+	if err := UpdateSum(tmpDir); err != nil {
+		t.Fatalf("UpdateSum() after adding files error = %v", err)
+	}
+
+	totalHash, entriesAfter, err := ReadSum(tmpDir)
+	if err != nil {
+		t.Fatalf("ReadSum() error = %v", err)
+	}
+
+	if len(entriesAfter) != 4 {
+		t.Errorf("expected 4 entries after reconciliation, got %d", len(entriesAfter))
+	}
+
+	if totalHash == "" {
+		t.Error("total hash should not be empty after reconciliation")
+	}
+
+	if err := ValidateSum(tmpDir); err != nil {
+		t.Errorf("ValidateSum() should pass after reconciliation, got: %v", err)
+	}
+}
+
+func TestUpdateSum_OverwritesCorruptSumFile(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "sum_test")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer func() { _ = os.RemoveAll(tmpDir) }()
+
+	if err := os.WriteFile(filepath.Join(tmpDir, "001_first.sql"), []byte("CREATE TABLE first (id INT);"), 0644); err != nil {
+		t.Fatalf("failed to write file: %v", err)
+	}
+
+	if err := os.WriteFile(filepath.Join(tmpDir, SumFile), []byte("garbage\nmore garbage\n"), 0644); err != nil {
+		t.Fatalf("failed to write corrupt sum file: %v", err)
+	}
+
+	if err := UpdateSum(tmpDir); err != nil {
+		t.Fatalf("UpdateSum() should overwrite corrupt sum file, got: %v", err)
+	}
+
+	totalHash, entries, err := ReadSum(tmpDir)
+	if err != nil {
+		t.Fatalf("ReadSum() error = %v", err)
+	}
+
+	if len(entries) != 1 {
+		t.Errorf("expected 1 entry, got %d", len(entries))
+	}
+
+	if totalHash == "" {
+		t.Error("total hash should not be empty")
+	}
+
+	if err := ValidateSum(tmpDir); err != nil {
+		t.Errorf("ValidateSum() should pass after overwrite, got: %v", err)
+	}
+}
+
+func TestUpdateSum_Idempotent(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "sum_test")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer func() { _ = os.RemoveAll(tmpDir) }()
+
+	if err := os.WriteFile(filepath.Join(tmpDir, "001_first.sql"), []byte("CREATE TABLE first (id INT);"), 0644); err != nil {
+		t.Fatalf("failed to write file: %v", err)
+	}
+
+	if err := UpdateSum(tmpDir); err != nil {
+		t.Fatalf("first UpdateSum() error = %v", err)
+	}
+
+	firstContent, err := os.ReadFile(filepath.Join(tmpDir, SumFile))
+	if err != nil {
+		t.Fatalf("failed to read sum file: %v", err)
+	}
+
+	if err := UpdateSum(tmpDir); err != nil {
+		t.Fatalf("second UpdateSum() error = %v", err)
+	}
+
+	secondContent, err := os.ReadFile(filepath.Join(tmpDir, SumFile))
+	if err != nil {
+		t.Fatalf("failed to read sum file: %v", err)
+	}
+
+	if string(firstContent) != string(secondContent) {
+		t.Error("UpdateSum() should be idempotent, but sum file changed between runs")
+	}
+}
+
 func TestGenerateSum_SortsFiles(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "sum_test")
 	if err != nil {
