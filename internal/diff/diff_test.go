@@ -325,9 +325,6 @@ func TestFilterCascadedDrops_DropsOwnedObjects(t *testing.T) {
 			if gc.RoleGrant.ObjectType == "TABLE" && gc.RoleGrant.ObjectName == "users" {
 				t.Errorf("REVOKE on TABLE users should be filtered — table is being dropped")
 			}
-			if gc.RoleGrant.ObjectType == "TYPE" {
-				// TYPE grants should NOT be filtered — types are independent objects
-			}
 		}
 	}
 
