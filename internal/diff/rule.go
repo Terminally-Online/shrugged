@@ -17,7 +17,7 @@ func (c *RuleChange) SQL() string {
 	case CreateRule:
 		return c.Rule.Definition + ";"
 	case DropRule:
-		return fmt.Sprintf("DROP RULE %s ON %s;", quoteIdent(c.Rule.Name), qualifiedName(c.Rule.Schema, c.Rule.Table))
+		return fmt.Sprintf("DROP RULE IF EXISTS %s ON %s;", quoteIdent(c.Rule.Name), qualifiedName(c.Rule.Schema, c.Rule.Table))
 	}
 	return ""
 }
@@ -25,7 +25,7 @@ func (c *RuleChange) SQL() string {
 func (c *RuleChange) DownSQL() string {
 	switch c.ChangeType {
 	case CreateRule:
-		return fmt.Sprintf("DROP RULE %s ON %s;", quoteIdent(c.Rule.Name), qualifiedName(c.Rule.Schema, c.Rule.Table))
+		return fmt.Sprintf("DROP RULE IF EXISTS %s ON %s;", quoteIdent(c.Rule.Name), qualifiedName(c.Rule.Schema, c.Rule.Table))
 	case DropRule:
 		if c.OldRule != nil {
 			return c.OldRule.Definition + ";"

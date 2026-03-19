@@ -124,7 +124,37 @@ func Compare(current, desired *parser.Schema) []Change {
 	changes = append(changes, compareDefaultPrivileges(current.DefaultPrivileges, desired.DefaultPrivileges)...)
 	changes = append(changes, compareComments(current.Comments, desired.Comments)...)
 
-	return changes
+	return filterDroppedTableGrants(changes)
+}
+
+// filterDroppedTableGrants removes REVOKE statements for grants on tables that
+// are being dropped in the same migration. PostgreSQL has no IF EXISTS for
+// REVOKE, and the grant vanishes automatically when the table is dropped.
+func filterDroppedTableGrants(changes []Change) []Change {
+	droppedTables := make(map[string]bool)
+	for _, c := range changes {
+		if c.Type() == DropTable {
+			tc := c.(*TableChange)
+			droppedTables[objectKey(tc.Table.Schema, tc.Table.Name)] = true
+		}
+	}
+	if len(droppedTables) == 0 {
+		return changes
+	}
+
+	filtered := make([]Change, 0, len(changes))
+	for _, c := range changes {
+		if c.Type() == DropRoleGrant {
+			gc := c.(*RoleGrantChange)
+			if gc.RoleGrant.ObjectType == "TABLE" || gc.RoleGrant.ObjectType == "" {
+				if droppedTables[objectKey(gc.RoleGrant.Schema, gc.RoleGrant.ObjectName)] {
+					continue
+				}
+			}
+		}
+		filtered = append(filtered, c)
+	}
+	return filtered
 }
 
 func quoteIdent(s string) string {

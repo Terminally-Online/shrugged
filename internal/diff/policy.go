@@ -35,7 +35,7 @@ func (c *PolicyChange) SQL() string {
 		}
 		return sql + ";"
 	case DropPolicy:
-		return fmt.Sprintf("DROP POLICY %s ON %s;", quoteIdent(c.Policy.Name), tableName)
+		return fmt.Sprintf("DROP POLICY IF EXISTS %s ON %s;", quoteIdent(c.Policy.Name), tableName)
 	}
 	return ""
 }
@@ -44,7 +44,7 @@ func (c *PolicyChange) DownSQL() string {
 	tableName := qualifiedName(c.Policy.Schema, c.Policy.Table)
 	switch c.ChangeType {
 	case CreatePolicy:
-		return fmt.Sprintf("DROP POLICY %s ON %s;", quoteIdent(c.Policy.Name), tableName)
+		return fmt.Sprintf("DROP POLICY IF EXISTS %s ON %s;", quoteIdent(c.Policy.Name), tableName)
 	case DropPolicy:
 		if c.OldPolicy != nil {
 			oldTableName := qualifiedName(c.OldPolicy.Schema, c.OldPolicy.Table)

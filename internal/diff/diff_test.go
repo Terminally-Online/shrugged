@@ -278,6 +278,111 @@ func TestQualifiedName(t *testing.T) {
 	}
 }
 
+func TestDropTableFiltersTableGrants(t *testing.T) {
+	current := &parser.Schema{
+		Tables: []parser.Table{
+			{Name: "users", Schema: "public", Columns: []parser.Column{{Name: "id", Type: "int"}}},
+		},
+		RoleGrants: []parser.RoleGrant{
+			{Privilege: "SELECT", ObjectType: "TABLE", Schema: "public", ObjectName: "users", Grantee: "reader"},
+			{Privilege: "USAGE", ObjectType: "TYPE", Schema: "public", ObjectName: "status_enum", Grantee: "reader"},
+		},
+	}
+	desired := &parser.Schema{}
+
+	changes := Compare(current, desired)
+
+	for _, c := range changes {
+		if c.Type() == DropRoleGrant {
+			gc := c.(*RoleGrantChange)
+			if gc.RoleGrant.ObjectType == "TABLE" && gc.RoleGrant.ObjectName == "users" {
+				t.Errorf("REVOKE on TABLE users should be filtered — table is being dropped")
+			}
+		}
+	}
+
+	foundTypeRevoke := false
+	for _, c := range changes {
+		if c.Type() == DropRoleGrant {
+			gc := c.(*RoleGrantChange)
+			if gc.RoleGrant.ObjectType == "TYPE" {
+				foundTypeRevoke = true
+			}
+		}
+	}
+	if !foundTypeRevoke {
+		t.Error("REVOKE USAGE ON TYPE should be preserved — types are not cascade-dropped with tables")
+	}
+}
+
+func TestDropTableOwnedObjectsUseIfExists(t *testing.T) {
+	current := &parser.Schema{
+		Tables: []parser.Table{
+			{Name: "users", Schema: "public", Columns: []parser.Column{{Name: "id", Type: "int"}}},
+		},
+		Indexes: []parser.Index{
+			{Name: "idx_users_email", Schema: "public", Table: "users", Columns: []string{"email"}},
+		},
+		Triggers: []parser.Trigger{
+			{Name: "trg_users_audit", Schema: "public", Table: "users", Timing: "AFTER", Events: []string{"INSERT"}, Function: "audit_fn", ForEach: "ROW"},
+		},
+		Rules: []parser.Rule{
+			{Name: "rule_users", Schema: "public", Table: "users", Definition: "CREATE RULE rule_users AS ON INSERT TO users DO NOTHING"},
+		},
+		Policies: []parser.Policy{
+			{Name: "pol_users", Schema: "public", Table: "users", Permissive: true, Command: "ALL"},
+		},
+	}
+	desired := &parser.Schema{}
+
+	changes := Compare(current, desired)
+
+	for _, c := range changes {
+		sql := c.SQL()
+		switch c.Type() {
+		case DropIndex:
+			if expected := "DROP INDEX IF EXISTS idx_users_email;"; sql != expected {
+				t.Errorf("got %q, want %q", sql, expected)
+			}
+		case DropTrigger:
+			if expected := "DROP TRIGGER IF EXISTS trg_users_audit ON users;"; sql != expected {
+				t.Errorf("got %q, want %q", sql, expected)
+			}
+		case DropRule:
+			if expected := "DROP RULE IF EXISTS rule_users ON users;"; sql != expected {
+				t.Errorf("got %q, want %q", sql, expected)
+			}
+		case DropPolicy:
+			if expected := "DROP POLICY IF EXISTS pol_users ON users;"; sql != expected {
+				t.Errorf("got %q, want %q", sql, expected)
+			}
+		}
+	}
+
+	// Verify down migrations preserve CREATE statements for rollback
+	for _, c := range changes {
+		downSQL := c.DownSQL()
+		switch c.Type() {
+		case DropIndex:
+			if downSQL == "" || downSQL[0] == '-' {
+				t.Errorf("DropIndex DownSQL should produce CREATE INDEX, got %q", downSQL)
+			}
+		case DropTrigger:
+			if downSQL == "" || downSQL[0] == '-' {
+				t.Errorf("DropTrigger DownSQL should produce CREATE TRIGGER, got %q", downSQL)
+			}
+		case DropRule:
+			if downSQL == "" || downSQL[0] == '-' {
+				t.Errorf("DropRule DownSQL should produce CREATE RULE, got %q", downSQL)
+			}
+		case DropPolicy:
+			if downSQL == "" || downSQL[0] == '-' {
+				t.Errorf("DropPolicy DownSQL should produce CREATE POLICY, got %q", downSQL)
+			}
+		}
+	}
+}
+
 func TestObjectKey(t *testing.T) {
 	tests := []struct {
 		name   string
