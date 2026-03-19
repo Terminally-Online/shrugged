@@ -124,13 +124,13 @@ func Compare(current, desired *parser.Schema) []Change {
 	changes = append(changes, compareDefaultPrivileges(current.DefaultPrivileges, desired.DefaultPrivileges)...)
 	changes = append(changes, compareComments(current.Comments, desired.Comments)...)
 
-	return filterCascadedDrops(changes)
+	return filterDroppedTableGrants(changes)
 }
 
-// filterCascadedDrops removes drop statements for objects that are automatically
-// dropped when their parent table is dropped (indexes, triggers, rules, policies,
-// and grants on the table).
-func filterCascadedDrops(changes []Change) []Change {
+// filterDroppedTableGrants removes REVOKE statements for grants on tables that
+// are being dropped in the same migration. PostgreSQL has no IF EXISTS for
+// REVOKE, and the grant vanishes automatically when the table is dropped.
+func filterDroppedTableGrants(changes []Change) []Change {
 	droppedTables := make(map[string]bool)
 	for _, c := range changes {
 		if c.Type() == DropTable {
@@ -144,28 +144,7 @@ func filterCascadedDrops(changes []Change) []Change {
 
 	filtered := make([]Change, 0, len(changes))
 	for _, c := range changes {
-		switch c.Type() {
-		case DropIndex:
-			ic := c.(*IndexChange)
-			if droppedTables[objectKey(ic.Index.Schema, ic.Index.Table)] {
-				continue
-			}
-		case DropTrigger:
-			tc := c.(*TriggerChange)
-			if droppedTables[objectKey(tc.Trigger.Schema, tc.Trigger.Table)] {
-				continue
-			}
-		case DropRule:
-			rc := c.(*RuleChange)
-			if droppedTables[objectKey(rc.Rule.Schema, rc.Rule.Table)] {
-				continue
-			}
-		case DropPolicy:
-			pc := c.(*PolicyChange)
-			if droppedTables[objectKey(pc.Policy.Schema, pc.Policy.Table)] {
-				continue
-			}
-		case DropRoleGrant:
+		if c.Type() == DropRoleGrant {
 			gc := c.(*RoleGrantChange)
 			if gc.RoleGrant.ObjectType == "TABLE" || gc.RoleGrant.ObjectType == "" {
 				if droppedTables[objectKey(gc.RoleGrant.Schema, gc.RoleGrant.ObjectName)] {

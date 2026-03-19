@@ -18,7 +18,7 @@ func (c *TriggerChange) SQL() string {
 	case CreateTrigger:
 		return generateCreateTrigger(c.Trigger)
 	case DropTrigger:
-		return fmt.Sprintf("DROP TRIGGER %s ON %s;", quoteIdent(c.Trigger.Name), quoteIdent(c.Trigger.Table))
+		return fmt.Sprintf("DROP TRIGGER IF EXISTS %s ON %s;", quoteIdent(c.Trigger.Name), quoteIdent(c.Trigger.Table))
 	}
 	return ""
 }
@@ -26,7 +26,7 @@ func (c *TriggerChange) SQL() string {
 func (c *TriggerChange) DownSQL() string {
 	switch c.ChangeType {
 	case CreateTrigger:
-		return fmt.Sprintf("DROP TRIGGER %s ON %s;", quoteIdent(c.Trigger.Name), quoteIdent(c.Trigger.Table))
+		return fmt.Sprintf("DROP TRIGGER IF EXISTS %s ON %s;", quoteIdent(c.Trigger.Name), quoteIdent(c.Trigger.Table))
 	case DropTrigger:
 		if c.OldTrigger != nil {
 			return generateCreateTrigger(*c.OldTrigger)

@@ -18,7 +18,7 @@ func (c *IndexChange) SQL() string {
 	case CreateIndex:
 		return generateCreateIndex(c.Index)
 	case DropIndex:
-		return fmt.Sprintf("DROP INDEX %s;", qualifiedName(c.Index.Schema, c.Index.Name))
+		return fmt.Sprintf("DROP INDEX IF EXISTS %s;", qualifiedName(c.Index.Schema, c.Index.Name))
 	}
 	return ""
 }
@@ -26,7 +26,7 @@ func (c *IndexChange) SQL() string {
 func (c *IndexChange) DownSQL() string {
 	switch c.ChangeType {
 	case CreateIndex:
-		return fmt.Sprintf("DROP INDEX %s;", qualifiedName(c.Index.Schema, c.Index.Name))
+		return fmt.Sprintf("DROP INDEX IF EXISTS %s;", qualifiedName(c.Index.Schema, c.Index.Name))
 	case DropIndex:
 		if c.OldIndex != nil {
 			return generateCreateIndex(*c.OldIndex)
