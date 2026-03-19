@@ -124,7 +124,58 @@ func Compare(current, desired *parser.Schema) []Change {
 	changes = append(changes, compareDefaultPrivileges(current.DefaultPrivileges, desired.DefaultPrivileges)...)
 	changes = append(changes, compareComments(current.Comments, desired.Comments)...)
 
-	return changes
+	return filterCascadedDrops(changes)
+}
+
+// filterCascadedDrops removes drop statements for objects that are automatically
+// dropped when their parent table is dropped (indexes, triggers, rules, policies,
+// and grants on the table).
+func filterCascadedDrops(changes []Change) []Change {
+	droppedTables := make(map[string]bool)
+	for _, c := range changes {
+		if c.Type() == DropTable {
+			tc := c.(*TableChange)
+			droppedTables[objectKey(tc.Table.Schema, tc.Table.Name)] = true
+		}
+	}
+	if len(droppedTables) == 0 {
+		return changes
+	}
+
+	filtered := make([]Change, 0, len(changes))
+	for _, c := range changes {
+		switch c.Type() {
+		case DropIndex:
+			ic := c.(*IndexChange)
+			if droppedTables[objectKey(ic.Index.Schema, ic.Index.Table)] {
+				continue
+			}
+		case DropTrigger:
+			tc := c.(*TriggerChange)
+			if droppedTables[objectKey(tc.Trigger.Schema, tc.Trigger.Table)] {
+				continue
+			}
+		case DropRule:
+			rc := c.(*RuleChange)
+			if droppedTables[objectKey(rc.Rule.Schema, rc.Rule.Table)] {
+				continue
+			}
+		case DropPolicy:
+			pc := c.(*PolicyChange)
+			if droppedTables[objectKey(pc.Policy.Schema, pc.Policy.Table)] {
+				continue
+			}
+		case DropRoleGrant:
+			gc := c.(*RoleGrantChange)
+			if gc.RoleGrant.ObjectType == "TABLE" || gc.RoleGrant.ObjectType == "" {
+				if droppedTables[objectKey(gc.RoleGrant.Schema, gc.RoleGrant.ObjectName)] {
+					continue
+				}
+			}
+		}
+		filtered = append(filtered, c)
+	}
+	return filtered
 }
 
 func quoteIdent(s string) string {

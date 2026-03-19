@@ -278,6 +278,101 @@ func TestQualifiedName(t *testing.T) {
 	}
 }
 
+func TestFilterCascadedDrops_DropsOwnedObjects(t *testing.T) {
+	current := &parser.Schema{
+		Tables: []parser.Table{
+			{Name: "users", Schema: "public", Columns: []parser.Column{{Name: "id", Type: "int"}}},
+		},
+		Indexes: []parser.Index{
+			{Name: "idx_users_email", Schema: "public", Table: "users", Columns: []string{"email"}},
+			{Name: "idx_orders_total", Schema: "public", Table: "orders", Columns: []string{"total"}},
+		},
+		Triggers: []parser.Trigger{
+			{Name: "trg_users_audit", Schema: "public", Table: "users", Timing: "AFTER", Events: []string{"INSERT"}, Function: "audit_fn", ForEach: "ROW"},
+		},
+		Rules: []parser.Rule{
+			{Name: "rule_users", Schema: "public", Table: "users"},
+		},
+		Policies: []parser.Policy{
+			{Name: "pol_users", Schema: "public", Table: "users", Permissive: true, Command: "ALL"},
+		},
+		RoleGrants: []parser.RoleGrant{
+			{Privilege: "SELECT", ObjectType: "TABLE", Schema: "public", ObjectName: "users", Grantee: "reader"},
+			{Privilege: "USAGE", ObjectType: "TYPE", Schema: "public", ObjectName: "status_enum", Grantee: "reader"},
+		},
+	}
+	desired := &parser.Schema{}
+
+	changes := Compare(current, desired)
+
+	for _, c := range changes {
+		switch c.Type() {
+		case DropTable:
+			// Expected: DROP TABLE users
+		case DropIndex:
+			ic := c.(*IndexChange)
+			if ic.Index.Table == "users" {
+				t.Errorf("DROP INDEX %s should be filtered — table users is being dropped", ic.Index.Name)
+			}
+		case DropTrigger:
+			t.Errorf("DROP TRIGGER %s should be filtered — table users is being dropped", c.ObjectName())
+		case DropRule:
+			t.Errorf("DROP RULE %s should be filtered — table users is being dropped", c.ObjectName())
+		case DropPolicy:
+			t.Errorf("DROP POLICY %s should be filtered — table users is being dropped", c.ObjectName())
+		case DropRoleGrant:
+			gc := c.(*RoleGrantChange)
+			if gc.RoleGrant.ObjectType == "TABLE" && gc.RoleGrant.ObjectName == "users" {
+				t.Errorf("REVOKE on TABLE users should be filtered — table is being dropped")
+			}
+			if gc.RoleGrant.ObjectType == "TYPE" {
+				// TYPE grants should NOT be filtered — types are independent objects
+			}
+		}
+	}
+
+	// Verify the unrelated index drop for "orders" table is preserved
+	foundOrdersIdx := false
+	for _, c := range changes {
+		if c.Type() == DropIndex {
+			ic := c.(*IndexChange)
+			if ic.Index.Name == "idx_orders_total" {
+				foundOrdersIdx = true
+			}
+		}
+	}
+	if !foundOrdersIdx {
+		t.Error("DROP INDEX idx_orders_total should be preserved — table orders is not being dropped")
+	}
+}
+
+func TestFilterCascadedDrops_PreservesNonTableGrants(t *testing.T) {
+	current := &parser.Schema{
+		Tables: []parser.Table{
+			{Name: "users", Schema: "public", Columns: []parser.Column{{Name: "id", Type: "int"}}},
+		},
+		RoleGrants: []parser.RoleGrant{
+			{Privilege: "USAGE", ObjectType: "TYPE", Schema: "public", ObjectName: "my_enum", Grantee: "reader"},
+		},
+	}
+	desired := &parser.Schema{}
+
+	changes := Compare(current, desired)
+
+	foundTypeRevoke := false
+	for _, c := range changes {
+		if c.Type() == DropRoleGrant {
+			gc := c.(*RoleGrantChange)
+			if gc.RoleGrant.ObjectType == "TYPE" {
+				foundTypeRevoke = true
+			}
+		}
+	}
+	if !foundTypeRevoke {
+		t.Error("REVOKE USAGE ON TYPE should be preserved — types are not cascade-dropped with tables")
+	}
+}
+
 func TestObjectKey(t *testing.T) {
 	tests := []struct {
 		name   string
