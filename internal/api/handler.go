@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -144,14 +143,17 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// writeJSON encodes v as JSON into w. On encoding failure it logs the error and
-// writes a 500 so the client receives a complete, well-formed error instead of
-// a truncated body.
+// writeJSON marshals v to JSON and writes it as the response body. Marshaling
+// happens into a buffer before any bytes are sent to the client, so a 500 can
+// be returned cleanly if encoding fails.
 func writeJSON(w http.ResponseWriter, v any) {
-	if err := json.NewEncoder(w).Encode(v); err != nil {
-		log.Printf("json encode error: %v", err)
+	data, err := json.Marshal(v)
+	if err != nil {
 		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		return
 	}
+	w.Header().Set("Content-Type", "application/json")
+	_, _ = w.Write(data)
 }
 
 func (h *Handler) handleHealth(w http.ResponseWriter, r *http.Request) {
