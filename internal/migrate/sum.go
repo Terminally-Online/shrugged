@@ -56,11 +56,15 @@ func GenerateSum(migrationsDir string) ([]SumEntry, error) {
 }
 
 func WriteSum(migrationsDir string, entries []SumEntry) error {
+	sumPath := filepath.Join(migrationsDir, SumFile)
+
 	if len(entries) == 0 {
+		if err := os.Remove(sumPath); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("failed to remove sum file: %w", err)
+		}
 		return nil
 	}
 
-	sumPath := filepath.Join(migrationsDir, SumFile)
 	f, err := os.Create(sumPath)
 	if err != nil {
 		return fmt.Errorf("failed to create sum file: %w", err)
@@ -149,19 +153,19 @@ func ValidateSum(migrationsDir string) error {
 		return err
 	}
 
-	storedMap := make(map[string]string)
-	for _, e := range storedEntries {
-		storedMap[e.Name] = e.Hash
+	currentMap := make(map[string]string)
+	for _, e := range currentEntries {
+		currentMap[e.Name] = e.Hash
 	}
 
-	for _, current := range currentEntries {
-		stored, exists := storedMap[current.Name]
+	for _, stored := range storedEntries {
+		current, exists := currentMap[stored.Name]
 		if !exists {
-			continue
+			return fmt.Errorf("migration %s has been deleted (tracked in sum file)", stored.Name)
 		}
 
-		if stored != current.Hash {
-			return fmt.Errorf("migration %s has been modified (hash mismatch)", current.Name)
+		if stored.Hash != current {
+			return fmt.Errorf("migration %s has been modified (hash mismatch)", stored.Name)
 		}
 	}
 

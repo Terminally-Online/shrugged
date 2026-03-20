@@ -377,6 +377,73 @@ func TestUpdateSum_Idempotent(t *testing.T) {
 	}
 }
 
+func TestValidateSum_DeletedFile(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "sum_test")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer func() { _ = os.RemoveAll(tmpDir) }()
+
+	for _, f := range []struct{ name, content string }{
+		{"001_first.sql", "CREATE TABLE first (id INT);"},
+		{"002_second.sql", "CREATE TABLE second (id INT);"},
+	} {
+		if err := os.WriteFile(filepath.Join(tmpDir, f.name), []byte(f.content), 0644); err != nil {
+			t.Fatalf("failed to write file: %v", err)
+		}
+	}
+
+	if err := UpdateSum(tmpDir); err != nil {
+		t.Fatalf("UpdateSum() error = %v", err)
+	}
+
+	if err := os.Remove(filepath.Join(tmpDir, "002_second.sql")); err != nil {
+		t.Fatalf("failed to delete migration file: %v", err)
+	}
+
+	err = ValidateSum(tmpDir)
+	if err == nil {
+		t.Error("ValidateSum() should return error when a tracked migration file is deleted")
+	}
+}
+
+func TestUpdateSum_ClearsSumFileWhenMigrationsDeleted(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "sum_test")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer func() { _ = os.RemoveAll(tmpDir) }()
+
+	if err := os.WriteFile(filepath.Join(tmpDir, "001_first.sql"), []byte("CREATE TABLE first (id INT);"), 0644); err != nil {
+		t.Fatalf("failed to write file: %v", err)
+	}
+
+	if err := UpdateSum(tmpDir); err != nil {
+		t.Fatalf("UpdateSum() error = %v", err)
+	}
+
+	sumPath := filepath.Join(tmpDir, SumFile)
+	if _, err := os.Stat(sumPath); os.IsNotExist(err) {
+		t.Fatal("sum file should exist after UpdateSum with migrations")
+	}
+
+	if err := os.Remove(filepath.Join(tmpDir, "001_first.sql")); err != nil {
+		t.Fatalf("failed to delete migration: %v", err)
+	}
+
+	if err := UpdateSum(tmpDir); err != nil {
+		t.Fatalf("UpdateSum() with empty dir error = %v", err)
+	}
+
+	if _, err := os.Stat(sumPath); !os.IsNotExist(err) {
+		t.Error("sum file should be removed when all migrations are deleted")
+	}
+
+	if err := ValidateSum(tmpDir); err != nil {
+		t.Errorf("ValidateSum() should pass on empty dir with no sum file, got: %v", err)
+	}
+}
+
 func TestGenerateSum_SortsFiles(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "sum_test")
 	if err != nil {
