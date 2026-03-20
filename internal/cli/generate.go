@@ -11,6 +11,7 @@ import (
 
 	"github.com/terminally-online/shrugged/internal/codegen"
 	_ "github.com/terminally-online/shrugged/internal/codegen/golang"
+	_ "github.com/terminally-online/shrugged/internal/codegen/typescript"
 	"github.com/terminally-online/shrugged/internal/docker"
 	"github.com/terminally-online/shrugged/internal/introspect"
 	"github.com/terminally-online/shrugged/internal/parser"
