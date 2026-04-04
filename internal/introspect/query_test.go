@@ -435,3 +435,258 @@ func TestIntrospectQueries_ArrayTypeParams(t *testing.T) {
 		}
 	}
 }
+
+func TestMapParamsToColumns_Insert(t *testing.T) {
+	sql := "INSERT INTO story_nodes (id, environment_id, stat_check, generated_by) VALUES ($1, $2, $3, $4)"
+	params := []parser.QueryParameter{
+		{Name: "id", Position: 1},
+		{Name: "environment_id", Position: 2},
+		{Name: "stat_check", Position: 3},
+		{Name: "generated_by", Position: 4},
+	}
+
+	result := mapParamsToColumns(sql, params)
+
+	expected := map[string]string{
+		"id":             "id",
+		"environment_id": "environment_id",
+		"stat_check":     "stat_check",
+		"generated_by":   "generated_by",
+	}
+	for paramName, wantCol := range expected {
+		if gotCol, ok := result[paramName]; !ok {
+			t.Errorf("param %q not mapped", paramName)
+		} else if gotCol != wantCol {
+			t.Errorf("param %q mapped to %q, want %q", paramName, gotCol, wantCol)
+		}
+	}
+}
+
+func TestMapParamsToColumns_Update(t *testing.T) {
+	sql := "UPDATE choice_edges SET to_node_id = $1 WHERE id = $2"
+	params := []parser.QueryParameter{
+		{Name: "to_node_id", Position: 1},
+		{Name: "id", Position: 2},
+	}
+
+	result := mapParamsToColumns(sql, params)
+
+	if got, ok := result["to_node_id"]; !ok || got != "to_node_id" {
+		t.Errorf("to_node_id mapping = %q, want %q", got, "to_node_id")
+	}
+	if got, ok := result["id"]; !ok || got != "id" {
+		t.Errorf("id mapping = %q, want %q", got, "id")
+	}
+}
+
+func TestMarkNullableParameters(t *testing.T) {
+	schema := &parser.Schema{
+		Tables: []parser.Table{
+			{
+				Name: "story_nodes",
+				Columns: []parser.Column{
+					{Name: "id", Type: "uuid", Nullable: false},
+					{Name: "environment_id", Type: "uuid", Nullable: false},
+					{Name: "content", Type: "text", Nullable: false},
+					{Name: "stat_check", Type: "jsonb", Nullable: true},
+					{Name: "generation_ctx", Type: "jsonb", Nullable: true},
+					{Name: "generated_by", Type: "uuid", Nullable: true},
+				},
+			},
+		},
+	}
+
+	sql := "INSERT INTO story_nodes (id, environment_id, content, stat_check, generation_ctx, generated_by) VALUES ($1, $2, $3, $4, $5, $6)"
+	params := []parser.QueryParameter{
+		{Name: "id", Position: 1},
+		{Name: "environment_id", Position: 2},
+		{Name: "content", Position: 3},
+		{Name: "stat_check", Position: 4},
+		{Name: "generation_ctx", Position: 5},
+		{Name: "generated_by", Position: 6},
+	}
+
+	markNullableParameters(sql, params, schema)
+
+	expectations := map[string]bool{
+		"id":             false,
+		"environment_id": false,
+		"content":        false,
+		"stat_check":     true,
+		"generation_ctx": true,
+		"generated_by":   true,
+	}
+
+	for _, p := range params {
+		want, ok := expectations[p.Name]
+		if !ok {
+			continue
+		}
+		if p.Nullable != want {
+			t.Errorf("param %q Nullable = %v, want %v", p.Name, p.Nullable, want)
+		}
+	}
+}
+
+func TestMarkNullableParameters_Update(t *testing.T) {
+	schema := &parser.Schema{
+		Tables: []parser.Table{
+			{
+				Name: "choice_edges",
+				Columns: []parser.Column{
+					{Name: "id", Type: "uuid", Nullable: false},
+					{Name: "to_node_id", Type: "uuid", Nullable: true},
+				},
+			},
+		},
+	}
+
+	sql := "UPDATE choice_edges SET to_node_id = $1 WHERE id = $2"
+	params := []parser.QueryParameter{
+		{Name: "to_node_id", Position: 1},
+		{Name: "id", Position: 2},
+	}
+
+	markNullableParameters(sql, params, schema)
+
+	if params[0].Nullable != true {
+		t.Errorf("to_node_id Nullable = %v, want true", params[0].Nullable)
+	}
+	if params[1].Nullable != false {
+		t.Errorf("id Nullable = %v, want false", params[1].Nullable)
+	}
+}
+
+func TestMarkNullableParameters_NilSchema(t *testing.T) {
+	params := []parser.QueryParameter{
+		{Name: "id", Position: 1},
+	}
+
+	markNullableParameters("INSERT INTO t (id) VALUES ($1)", params, nil)
+
+	if params[0].Nullable {
+		t.Error("param should not be nullable with nil schema")
+	}
+}
+
+func TestMarkNullableParameters_SelectQuery(t *testing.T) {
+	schema := &parser.Schema{
+		Tables: []parser.Table{
+			{
+				Name: "story_nodes",
+				Columns: []parser.Column{
+					{Name: "id", Type: "uuid", Nullable: false},
+				},
+			},
+		},
+	}
+
+	params := []parser.QueryParameter{
+		{Name: "id", Position: 1},
+	}
+
+	markNullableParameters("SELECT * FROM story_nodes WHERE id = $1", params, schema)
+
+	if params[0].Nullable {
+		t.Error("SELECT param should not be marked nullable (no INSERT/UPDATE match)")
+	}
+}
+
+func TestIntrospectQueries_NullableParams(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	cfg := docker.DefaultPostgresConfig()
+	container, err := docker.StartPostgres(ctx, cfg)
+	if err != nil {
+		t.Fatalf("StartPostgres() error = %v", err)
+	}
+	defer func() { _ = docker.StopContainer(context.Background(), container.ID) }()
+
+	dbURL := container.ConnectionString()
+
+	setupSQL := `
+		CREATE TABLE items (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			name TEXT NOT NULL,
+			description TEXT,
+			metadata JSONB,
+			parent_id UUID REFERENCES items(id)
+		);
+	`
+	if err := docker.ExecuteSQL(ctx, container, setupSQL); err != nil {
+		t.Fatalf("failed to setup schema: %v", err)
+	}
+
+	schema, err := Database(ctx, dbURL)
+	if err != nil {
+		t.Fatalf("failed to introspect database: %v", err)
+	}
+
+	queries := []parser.Query{
+		{
+			Name:        "CreateItem",
+			SQL:         "INSERT INTO items (id, name, description, metadata, parent_id) VALUES (@id, @name, @description, @metadata, @parent_id) RETURNING *",
+			PreparedSQL: "INSERT INTO items (id, name, description, metadata, parent_id) VALUES ($1, $2, $3, $4, $5) RETURNING *",
+			ResultType:  parser.QueryResultRow,
+			Parameters: []parser.QueryParameter{
+				{Name: "id", Position: 1},
+				{Name: "name", Position: 2},
+				{Name: "description", Position: 3},
+				{Name: "metadata", Position: 4},
+				{Name: "parent_id", Position: 5},
+			},
+		},
+		{
+			Name:        "UpdateItemParent",
+			SQL:         "UPDATE items SET parent_id = @parent_id WHERE id = @id",
+			PreparedSQL: "UPDATE items SET parent_id = $1 WHERE id = $2",
+			ResultType:  parser.QueryResultExec,
+			Parameters: []parser.QueryParameter{
+				{Name: "parent_id", Position: 1},
+				{Name: "id", Position: 2},
+			},
+		},
+	}
+
+	result, err := Queries(ctx, dbURL, queries, schema)
+	if err != nil {
+		t.Fatalf("Queries() error = %v", err)
+	}
+
+	createItem := result[0]
+	expectedNullable := map[string]bool{
+		"id":          false,
+		"name":        false,
+		"description": true,
+		"metadata":    true,
+		"parent_id":   true,
+	}
+	for _, p := range createItem.Parameters {
+		want, ok := expectedNullable[p.Name]
+		if !ok {
+			continue
+		}
+		if p.Nullable != want {
+			t.Errorf("CreateItem param %q Nullable = %v, want %v", p.Name, p.Nullable, want)
+		}
+	}
+
+	updateItem := result[1]
+	for _, p := range updateItem.Parameters {
+		switch p.Name {
+		case "parent_id":
+			if !p.Nullable {
+				t.Error("UpdateItemParent param parent_id should be nullable")
+			}
+		case "id":
+			if p.Nullable {
+				t.Error("UpdateItemParent param id should not be nullable")
+			}
+		}
+	}
+}
