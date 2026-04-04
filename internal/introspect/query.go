@@ -144,6 +144,12 @@ func resolveTypeName(oid uint32, typeMap map[uint32]string) string {
 		return name
 	}
 	if name, ok := typeMap[oid]; ok {
+		// PostgreSQL represents array types with a "_" prefix in pg_type
+		// (e.g., "_uuid" for uuid[], "_int4" for integer[]). Convert this
+		// to the "basetype[]" format that pgTypeToGo expects.
+		if strings.HasPrefix(name, "_") {
+			return name[1:] + "[]"
+		}
 		return name
 	}
 	return "unknown"
@@ -310,10 +316,20 @@ func oidToTypeName(oid uint32) string {
 		return "bit"
 	case 1562:
 		return "bit varying"
+	case 1115:
+		return "timestamp[]"
+	case 1182:
+		return "date[]"
+	case 1185:
+		return "timestamp with time zone[]"
+	case 1231:
+		return "numeric[]"
 	case 1700:
 		return "numeric"
 	case 2950:
 		return "uuid"
+	case 2951:
+		return "uuid[]"
 	case 3802:
 		return "jsonb"
 	case 3807:
