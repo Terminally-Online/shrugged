@@ -272,7 +272,8 @@ func loadPartitionInfo(ctx context.Context, conn *pgx.Conn, tableMap map[string]
 	defer partRows.Close()
 
 	for partRows.Next() {
-		var schemaName, tableName, parentSchema, parentTable, partBound string
+		var schemaName, tableName, parentSchema, parentTable string
+		var partBound *string
 		if err := partRows.Scan(&schemaName, &tableName, &parentSchema, &parentTable, &partBound); err != nil {
 			return fmt.Errorf("failed to scan partition bound: %w", err)
 		}
@@ -284,7 +285,9 @@ func loadPartitionInfo(ctx context.Context, conn *pgx.Conn, tableMap map[string]
 			} else {
 				table.PartitionOf = parentTable
 			}
-			table.PartitionBound = partBound
+			if partBound != nil {
+				table.PartitionBound = *partBound
+			}
 		}
 	}
 
