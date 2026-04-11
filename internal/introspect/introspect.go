@@ -244,10 +244,24 @@ func loadPartitionInfo(ctx context.Context, conn *pgx.Conn, tableMap map[string]
 			return fmt.Errorf("failed to scan partition info: %w", err)
 		}
 
+		// pg_get_partkeydef returns "RANGE (bucket)" — strip the strategy prefix
+		// since we store it separately in PartitionBy.
+		cleanKey := partKey
+		prefixes := []string{"RANGE ", "LIST ", "HASH "}
+		for _, p := range prefixes {
+			if strings.HasPrefix(cleanKey, p) {
+				cleanKey = strings.TrimPrefix(cleanKey, p)
+				break
+			}
+		}
+		// Remove outer parens: "(bucket)" → "bucket"
+		cleanKey = strings.TrimPrefix(cleanKey, "(")
+		cleanKey = strings.TrimSuffix(cleanKey, ")")
+
 		key := schemaName + "." + tableName
 		if table, ok := tableMap[key]; ok {
 			table.PartitionBy = partStrategy
-			table.PartitionKey = partKey
+			table.PartitionKey = cleanKey
 		}
 	}
 

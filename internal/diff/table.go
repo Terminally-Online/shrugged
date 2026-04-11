@@ -71,7 +71,7 @@ func (c *TableChange) IsReversible() bool {
 }
 
 func compareTables(current, desired []parser.Table) []Change {
-	var changes []Change
+	var drops, creates, alters []Change
 
 	currentMap := make(map[string]parser.Table)
 	for _, t := range current {
@@ -83,32 +83,44 @@ func compareTables(current, desired []parser.Table) []Change {
 		desiredMap[objectKey(t.Schema, t.Name)] = t
 	}
 
+	// Tables to drop (in current but not desired, or partitioning changed)
+	for _, t := range current {
+		if _, exists := desiredMap[objectKey(t.Schema, t.Name)]; !exists {
+			drops = append(drops, &TableChange{ChangeType: DropTable, Table: t})
+		}
+	}
+
+	// Tables where partitioning changed: drop first, recreate after
+	for key, desiredTable := range desiredMap {
+		if currentTable, exists := currentMap[key]; exists {
+			if currentTable.PartitionBy != desiredTable.PartitionBy || currentTable.PartitionKey != desiredTable.PartitionKey {
+				drops = append(drops, &TableChange{ChangeType: DropTable, Table: currentTable})
+				creates = append(creates, &TableChange{ChangeType: CreateTable, Table: desiredTable})
+				continue
+			}
+			if tableChanges := compareTableColumns(currentTable, desiredTable); tableChanges != nil {
+				alters = append(alters, tableChanges)
+			}
+		}
+	}
+
+	// New tables (in desired but not current)
 	var tablesToCreate []parser.Table
 	for _, t := range desired {
 		if _, exists := currentMap[objectKey(t.Schema, t.Name)]; !exists {
 			tablesToCreate = append(tablesToCreate, t)
 		}
 	}
-
 	sortedTables := sortTablesByDependency(tablesToCreate)
 	for _, t := range sortedTables {
-		changes = append(changes, &TableChange{ChangeType: CreateTable, Table: t})
+		creates = append(creates, &TableChange{ChangeType: CreateTable, Table: t})
 	}
 
-	for _, t := range current {
-		if _, exists := desiredMap[objectKey(t.Schema, t.Name)]; !exists {
-			changes = append(changes, &TableChange{ChangeType: DropTable, Table: t})
-		}
-	}
-
-	for key, desiredTable := range desiredMap {
-		if currentTable, exists := currentMap[key]; exists {
-			if tableChanges := compareTableColumns(currentTable, desiredTable); tableChanges != nil {
-				changes = append(changes, tableChanges)
-			}
-		}
-	}
-
+	// Order: drops first, then creates (parent before children), then alters
+	var changes []Change
+	changes = append(changes, drops...)
+	changes = append(changes, creates...)
+	changes = append(changes, alters...)
 	return changes
 }
 
