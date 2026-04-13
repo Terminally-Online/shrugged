@@ -90,6 +90,8 @@ func introspectQuery(ctx context.Context, conn *pgx.Conn, query parser.Query, sc
 		}
 	}
 
+	markNullableParameters(query.PreparedSQL, query.Parameters, schema)
+
 	jsonAggColumns := detectJSONAggColumns(query.SQL, schema)
 
 	query.Columns = make([]parser.QueryColumn, len(sd.Fields))
@@ -136,6 +138,8 @@ func introspectExecQuery(ctx context.Context, conn *pgx.Conn, query parser.Query
 		}
 	}
 
+	markNullableParameters(query.PreparedSQL, query.Parameters, schema)
+
 	return query, nil
 }
 
@@ -144,6 +148,12 @@ func resolveTypeName(oid uint32, typeMap map[uint32]string) string {
 		return name
 	}
 	if name, ok := typeMap[oid]; ok {
+		// PostgreSQL represents array types with a "_" prefix in pg_type
+		// (e.g., "_uuid" for uuid[], "_int4" for integer[]). Convert this
+		// to the "basetype[]" format that pgTypeToGo expects.
+		if strings.HasPrefix(name, "_") {
+			return name[1:] + "[]"
+		}
 		return name
 	}
 	return "unknown"
@@ -228,6 +238,145 @@ func extractColumnAlias(line string, jsonAggExpr string) string {
 	return ""
 }
 
+// markNullableParameters inspects the SQL for INSERT/UPDATE patterns, maps
+// each parameter to its target column, and sets Nullable on the parameter
+// when the schema declares that column as nullable.
+func markNullableParameters(sql string, params []parser.QueryParameter, schema *parser.Schema) {
+	if schema == nil || len(params) == 0 {
+		return
+	}
+
+	paramColMap := mapParamsToColumns(sql, params)
+	if len(paramColMap) == 0 {
+		return
+	}
+
+	tableName := extractTargetTable(sql)
+	if tableName == "" {
+		return
+	}
+
+	var table *parser.Table
+	for i := range schema.Tables {
+		if schema.Tables[i].Name == tableName {
+			table = &schema.Tables[i]
+			break
+		}
+	}
+	if table == nil {
+		return
+	}
+
+	colNullable := make(map[string]bool)
+	for _, col := range table.Columns {
+		colNullable[col.Name] = col.Nullable
+	}
+
+	for i := range params {
+		if colName, ok := paramColMap[params[i].Name]; ok {
+			if colNullable[colName] {
+				params[i].Nullable = true
+			}
+		}
+	}
+}
+
+var insertRegex = regexp.MustCompile(`(?i)INSERT\s+INTO\s+(\w+)\s*\(([^)]+)\)\s*VALUES\s*\(([^)]+)\)`)
+var updateRegex = regexp.MustCompile(`(?i)UPDATE\s+(\w+)\s+SET\s+(.+?)(?:\s+WHERE\s+|\s+RETURNING\s+|$)`)
+var setClauseRegex = regexp.MustCompile(`(\w+)\s*=\s*\$(\d+)`)
+
+// extractTargetTable pulls the table name from INSERT INTO or UPDATE statements.
+func extractTargetTable(sql string) string {
+	if m := insertRegex.FindStringSubmatch(sql); m != nil {
+		return m[1]
+	}
+	upNorm := strings.Join(strings.Fields(sql), " ")
+	if m := updateRegex.FindStringSubmatch(upNorm); m != nil {
+		return m[1]
+	}
+	return ""
+}
+
+// mapParamsToColumns maps parameter names to column names by parsing INSERT
+// column/value lists and UPDATE SET clauses.
+func mapParamsToColumns(sql string, params []parser.QueryParameter) map[string]string {
+	result := make(map[string]string)
+
+	// Build position-to-name lookup from params
+	posByName := make(map[int]string)
+	for _, p := range params {
+		posByName[p.Position] = p.Name
+	}
+
+	// Try INSERT INTO table (col1, col2) VALUES ($1, $2) pattern
+	if m := insertRegex.FindStringSubmatch(sql); m != nil {
+		cols := splitTrimmed(m[2])
+		vals := splitTrimmed(m[3])
+		if len(cols) == len(vals) {
+			for i, val := range vals {
+				val = strings.TrimSpace(val)
+				if strings.HasPrefix(val, "$") {
+					posStr := strings.TrimPrefix(val, "$")
+					pos := 0
+					for _, c := range posStr {
+						if c >= '0' && c <= '9' {
+							pos = pos*10 + int(c-'0')
+						} else {
+							break
+						}
+					}
+					if paramName, ok := posByName[pos]; ok {
+						result[paramName] = cols[i]
+					}
+				}
+			}
+		}
+		return result
+	}
+
+	// Try UPDATE table SET col1 = $1, col2 = $2 WHERE ... pattern
+	upNorm := strings.Join(strings.Fields(sql), " ")
+	if m := updateRegex.FindStringSubmatch(upNorm); m != nil {
+		setClauses := m[2]
+		for _, sm := range setClauseRegex.FindAllStringSubmatch(setClauses, -1) {
+			colName := sm[1]
+			pos := 0
+			for _, c := range sm[2] {
+				pos = pos*10 + int(c-'0')
+			}
+			if paramName, ok := posByName[pos]; ok {
+				result[paramName] = colName
+			}
+		}
+
+		// Also handle WHERE clause parameters (they map to columns too)
+		whereIdx := strings.Index(strings.ToUpper(upNorm), " WHERE ")
+		if whereIdx >= 0 {
+			whereClause := upNorm[whereIdx+7:]
+			for _, sm := range setClauseRegex.FindAllStringSubmatch(whereClause, -1) {
+				colName := sm[1]
+				pos := 0
+				for _, c := range sm[2] {
+					pos = pos*10 + int(c-'0')
+				}
+				if paramName, ok := posByName[pos]; ok {
+					result[paramName] = colName
+				}
+			}
+		}
+	}
+
+	return result
+}
+
+func splitTrimmed(s string) []string {
+	parts := strings.Split(s, ",")
+	for i := range parts {
+		parts[i] = strings.TrimSpace(parts[i])
+	}
+	return parts
+}
+
 func oidToTypeName(oid uint32) string {
 	switch oid {
 	case 16:
@@ -310,10 +459,20 @@ func oidToTypeName(oid uint32) string {
 		return "bit"
 	case 1562:
 		return "bit varying"
+	case 1115:
+		return "timestamp[]"
+	case 1182:
+		return "date[]"
+	case 1185:
+		return "timestamp with time zone[]"
+	case 1231:
+		return "numeric[]"
 	case 1700:
 		return "numeric"
 	case 2950:
 		return "uuid"
+	case 2951:
+		return "uuid[]"
 	case 3802:
 		return "jsonb"
 	case 3807:

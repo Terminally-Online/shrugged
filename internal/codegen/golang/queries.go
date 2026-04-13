@@ -419,7 +419,7 @@ func generateParamsStruct(rq resolvedQuery, modelsPackage string, customTypes ma
 			fieldType = "interface{}"
 		}
 		fieldType = prefixCustomType(fieldType, modelsPackage, customTypes)
-		if p.Nullable && !strings.HasPrefix(fieldType, "*") {
+		if p.Nullable && !isInherentlyNullable(fieldType) && !strings.HasPrefix(fieldType, "*") {
 			fieldType = "*" + fieldType
 		}
 
@@ -433,6 +433,14 @@ func generateParamsStruct(rq resolvedQuery, modelsPackage string, customTypes ma
 
 	sb.WriteString("}\n")
 	return sb.String()
+}
+
+// isInherentlyNullable returns true for Go types that represent SQL NULL
+// as their zero value (nil), making a pointer wrapper unnecessary.
+func isInherentlyNullable(goType string) bool {
+	return goType == "[]byte" ||
+		strings.HasPrefix(goType, "json.") ||
+		strings.HasPrefix(goType, "[]")
 }
 
 func prefixCustomType(goType string, modelsPackage string, customTypes map[string]bool) string {
@@ -492,7 +500,7 @@ func generateQueryFunction(rq resolvedQuery, modelsPackage string, needsResultSt
 				paramType = "interface{}"
 			}
 			paramType = prefixCustomType(paramType, modelsPackage, customTypes)
-			if p.Nullable && !strings.HasPrefix(paramType, "*") {
+			if p.Nullable && !isInherentlyNullable(paramType) && !strings.HasPrefix(paramType, "*") {
 				paramType = "*" + paramType
 			}
 			params = append(params, fmt.Sprintf("%s %s", toCamelCase(p.Name), paramType))
