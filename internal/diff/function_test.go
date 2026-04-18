@@ -248,6 +248,178 @@ func TestFunctionChange_IsReversible(t *testing.T) {
 	}
 }
 
+func TestCompare_FunctionOverloads_DistinctSignatures(t *testing.T) {
+	current := &parser.Schema{
+		Functions: []parser.Function{
+			{Name: "foo", Args: "x integer", Returns: "integer", Language: "sql", Body: "SELECT x"},
+			{Name: "foo", Args: "x integer, y text", Returns: "integer", Language: "sql", Body: "SELECT x"},
+		},
+	}
+	desired := &parser.Schema{
+		Functions: []parser.Function{
+			{Name: "foo", Args: "x integer", Returns: "integer", Language: "sql", Body: "SELECT x"},
+			{Name: "foo", Args: "x integer, y text", Returns: "integer", Language: "sql", Body: "SELECT x"},
+		},
+	}
+
+	changes := Compare(current, desired)
+
+	for _, c := range changes {
+		if c.ObjectName() == "foo" {
+			t.Errorf("expected no changes for matched overloads, got %v", c.Type())
+		}
+	}
+}
+
+func TestCompare_FunctionOverloads_AddSignature(t *testing.T) {
+	current := &parser.Schema{
+		Functions: []parser.Function{
+			{Name: "foo", Args: "x integer", Returns: "integer", Language: "sql", Body: "SELECT x"},
+		},
+	}
+	desired := &parser.Schema{
+		Functions: []parser.Function{
+			{Name: "foo", Args: "x integer", Returns: "integer", Language: "sql", Body: "SELECT x"},
+			{Name: "foo", Args: "x integer, y text", Returns: "integer", Language: "sql", Body: "SELECT x"},
+		},
+	}
+
+	changes := Compare(current, desired)
+
+	var creates, alters, drops int
+	for _, c := range changes {
+		if c.ObjectName() != "foo" {
+			continue
+		}
+		switch c.Type() {
+		case CreateFunction:
+			creates++
+		case AlterFunction:
+			alters++
+		case DropFunction:
+			drops++
+		}
+	}
+
+	if creates != 1 {
+		t.Errorf("expected 1 CreateFunction for new overload, got %d", creates)
+	}
+	if alters != 0 {
+		t.Errorf("expected 0 AlterFunction (existing overload unchanged), got %d", alters)
+	}
+	if drops != 0 {
+		t.Errorf("expected 0 DropFunction (existing overload unchanged), got %d", drops)
+	}
+}
+
+func TestCompare_FunctionOverloads_SignatureChange(t *testing.T) {
+	current := &parser.Schema{
+		Functions: []parser.Function{
+			{Name: "foo", Args: "x integer", Returns: "integer", Language: "sql", Body: "SELECT x"},
+		},
+	}
+	desired := &parser.Schema{
+		Functions: []parser.Function{
+			{Name: "foo", Args: "x integer, y text", Returns: "integer", Language: "sql", Body: "SELECT x"},
+		},
+	}
+
+	changes := Compare(current, desired)
+
+	var dropSQL, createSQL string
+	for _, c := range changes {
+		if c.ObjectName() != "foo" {
+			continue
+		}
+		switch c.Type() {
+		case DropFunction:
+			dropSQL = c.(*FunctionChange).SQL()
+		case CreateFunction:
+			createSQL = c.(*FunctionChange).SQL()
+		case AlterFunction:
+			t.Errorf("expected DROP+CREATE for signature change, got AlterFunction")
+		}
+	}
+
+	if dropSQL == "" {
+		t.Fatal("expected DropFunction change for old signature")
+	}
+	if createSQL == "" {
+		t.Fatal("expected CreateFunction change for new signature")
+	}
+	if !strings.Contains(dropSQL, "DROP FUNCTION") || !strings.Contains(dropSQL, "(integer)") {
+		t.Errorf("DropFunction SQL should drop the old signature exactly: got %q", dropSQL)
+	}
+	if !strings.Contains(createSQL, "CREATE OR REPLACE FUNCTION") || !strings.Contains(createSQL, "x integer, y text") {
+		t.Errorf("CreateFunction SQL should create the new signature: got %q", createSQL)
+	}
+}
+
+func TestFunctionChange_DropIncludesSignature(t *testing.T) {
+	change := &FunctionChange{
+		ChangeType: DropFunction,
+		Function: parser.Function{
+			Schema: "public",
+			Name:   "foo",
+			Args:   "p_x integer, p_y text DEFAULT ''",
+		},
+	}
+
+	sql := change.SQL()
+	want := "DROP FUNCTION foo(integer, text);"
+	if sql != want {
+		t.Errorf("DROP FUNCTION SQL = %q, want %q", sql, want)
+	}
+}
+
+func TestFunctionChange_DropQualifiedSchemaSignature(t *testing.T) {
+	change := &FunctionChange{
+		ChangeType: DropFunction,
+		Function: parser.Function{
+			Schema: "myschema",
+			Name:   "foo",
+			Args:   "VARIADIC arr integer[]",
+		},
+	}
+
+	sql := change.SQL()
+	want := `DROP FUNCTION myschema.foo(VARIADIC integer[]);`
+	if sql != want {
+		t.Errorf("DROP FUNCTION SQL = %q, want %q", sql, want)
+	}
+}
+
+func TestNormalizeFunctionSignature(t *testing.T) {
+	tests := []struct {
+		name string
+		args string
+		want string
+	}{
+		{name: "empty", args: "", want: ""},
+		{name: "single typed", args: "x integer", want: "integer"},
+		{name: "type-only", args: "integer", want: "integer"},
+		{name: "two typed", args: "x integer, y text", want: "integer, text"},
+		{name: "default value", args: "x integer DEFAULT 0", want: "integer"},
+		{name: "equals default", args: "x integer = 0", want: "integer"},
+		{name: "default literal text", args: "p_y text DEFAULT ''", want: "text"},
+		{name: "parenthesized type", args: "amount numeric(10, 2)", want: "numeric(10, 2)"},
+		{name: "in mode stripped", args: "IN x integer", want: "IN integer"},
+		{name: "out mode stripped", args: "OUT x integer", want: "OUT integer"},
+		{name: "variadic kept", args: "VARIADIC arr integer[]", want: "VARIADIC integer[]"},
+		{name: "mixed", args: "p_x int, p_y text DEFAULT 'foo', p_z numeric(10,2)",
+			want: "int, text, numeric(10,2)"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := normalizeFunctionSignature(tt.args)
+			if got != tt.want {
+				t.Errorf("normalizeFunctionSignature(%q) = %q, want %q", tt.args, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestGenerateCreateFunction(t *testing.T) {
 	f := parser.Function{
 		Name:     "multiply",
