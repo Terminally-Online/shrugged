@@ -248,6 +248,128 @@ func TestFunctionChange_IsReversible(t *testing.T) {
 	}
 }
 
+func TestCompare_FunctionBodyWhitespaceOnly(t *testing.T) {
+	current := &parser.Schema{
+		Functions: []parser.Function{
+			{Name: "my_func", Args: "", Returns: "integer", Language: "sql", Body: "SELECT 1"},
+		},
+	}
+	desired := &parser.Schema{
+		Functions: []parser.Function{
+			{Name: "my_func", Args: "", Returns: "integer", Language: "sql", Body: "  SELECT\n\t1\n"},
+		},
+	}
+
+	changes := Compare(current, desired)
+
+	for _, c := range changes {
+		if c.Type() == AlterFunction && c.ObjectName() == "my_func" {
+			t.Error("whitespace-only body difference should not produce AlterFunction")
+		}
+	}
+}
+
+func TestCompare_FunctionBodyCommentOnly(t *testing.T) {
+	current := &parser.Schema{
+		Functions: []parser.Function{
+			{Name: "my_func", Args: "", Returns: "integer", Language: "sql", Body: "SELECT 1"},
+		},
+	}
+	desired := &parser.Schema{
+		Functions: []parser.Function{
+			{Name: "my_func", Args: "", Returns: "integer", Language: "sql", Body: "-- compute one\nSELECT 1 /* trailing */"},
+		},
+	}
+
+	changes := Compare(current, desired)
+
+	for _, c := range changes {
+		if c.Type() == AlterFunction && c.ObjectName() == "my_func" {
+			t.Error("comment-only body difference should not produce AlterFunction")
+		}
+	}
+}
+
+func TestCompare_FunctionBodySemanticChange(t *testing.T) {
+	current := &parser.Schema{
+		Functions: []parser.Function{
+			{Name: "my_func", Args: "", Returns: "integer", Language: "sql", Body: "SELECT 1"},
+		},
+	}
+	desired := &parser.Schema{
+		Functions: []parser.Function{
+			{Name: "my_func", Args: "", Returns: "integer", Language: "sql", Body: "-- now returns two\nSELECT  2"},
+		},
+	}
+
+	changes := Compare(current, desired)
+
+	found := false
+	for _, c := range changes {
+		if c.Type() == AlterFunction && c.ObjectName() == "my_func" {
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		t.Error("genuine body change should still produce AlterFunction")
+	}
+}
+
+func TestNormalizeFunctionBody(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{
+			name: "trim and collapse whitespace",
+			in:   "  SELECT\n\t1\n",
+			want: "SELECT 1",
+		},
+		{
+			name: "strip line comment",
+			in:   "SELECT 1 -- trailing comment\n",
+			want: "SELECT 1",
+		},
+		{
+			name: "strip block comment",
+			in:   "SELECT /* inline */ 1",
+			want: "SELECT 1",
+		},
+		{
+			name: "preserve -- inside single-quoted string",
+			in:   "SELECT 'foo -- bar'",
+			want: "SELECT 'foo -- bar'",
+		},
+		{
+			name: "preserve doubled-quote escape inside string",
+			in:   "SELECT 'it''s -- fine'",
+			want: "SELECT 'it''s -- fine'",
+		},
+		{
+			name: "preserve dollar-quoted body with comment-like text",
+			in:   "BEGIN RETURN $$line one -- not a comment\nline two$$; END",
+			want: "BEGIN RETURN $$line one -- not a comment line two$$; END",
+		},
+		{
+			name: "preserve tagged dollar quote",
+			in:   "SELECT $tag$ -- still text $tag$",
+			want: "SELECT $tag$ -- still text $tag$",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := normalizeFunctionBody(tt.in)
+			if got != tt.want {
+				t.Errorf("normalizeFunctionBody(%q) = %q, want %q", tt.in, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestGenerateCreateFunction(t *testing.T) {
 	f := parser.Function{
 		Name:     "multiply",
