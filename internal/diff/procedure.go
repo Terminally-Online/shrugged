@@ -24,12 +24,7 @@ func (c *ProcedureChange) SQL() string {
 			c.Procedure.Language,
 			c.Procedure.Body)
 	case DropProcedure:
-		if c.Procedure.Args != "" {
-			return fmt.Sprintf("DROP PROCEDURE %s(%s);",
-				qualifiedName(c.Procedure.Schema, c.Procedure.Name),
-				c.Procedure.Args)
-		}
-		return fmt.Sprintf("DROP PROCEDURE %s;", qualifiedName(c.Procedure.Schema, c.Procedure.Name))
+		return dropProcedureSQL(c.Procedure)
 	}
 	return ""
 }
@@ -37,12 +32,7 @@ func (c *ProcedureChange) SQL() string {
 func (c *ProcedureChange) DownSQL() string {
 	switch c.ChangeType {
 	case CreateProcedure:
-		if c.Procedure.Args != "" {
-			return fmt.Sprintf("DROP PROCEDURE %s(%s);",
-				qualifiedName(c.Procedure.Schema, c.Procedure.Name),
-				c.Procedure.Args)
-		}
-		return fmt.Sprintf("DROP PROCEDURE %s;", qualifiedName(c.Procedure.Schema, c.Procedure.Name))
+		return dropProcedureSQL(c.Procedure)
 	case DropProcedure:
 		if c.OldProcedure != nil {
 			if c.OldProcedure.Definition != "" {
@@ -88,29 +78,46 @@ func compareProcedures(current, desired []parser.Procedure) []Change {
 	var changes []Change
 	currentMap := make(map[string]parser.Procedure)
 	for _, p := range current {
-		key := objectKey(p.Schema, p.Name) + "(" + p.Args + ")"
-		currentMap[key] = p
+		currentMap[procedureKey(p)] = p
 	}
 	for _, p := range desired {
-		key := objectKey(p.Schema, p.Name) + "(" + p.Args + ")"
-		if existing, exists := currentMap[key]; !exists {
+		if existing, exists := currentMap[procedureKey(p)]; !exists {
 			changes = append(changes, &ProcedureChange{ChangeType: CreateProcedure, Procedure: p})
-		} else if existing.Body != p.Body {
+		} else if normalizeFunctionBody(existing.Body) != normalizeFunctionBody(p.Body) {
 			oldProc := existing
 			changes = append(changes, &ProcedureChange{ChangeType: AlterProcedure, Procedure: p, OldProcedure: &oldProc})
 		}
 	}
 	desiredMap := make(map[string]bool)
 	for _, p := range desired {
-		key := objectKey(p.Schema, p.Name) + "(" + p.Args + ")"
-		desiredMap[key] = true
+		desiredMap[procedureKey(p)] = true
 	}
 	for _, p := range current {
-		key := objectKey(p.Schema, p.Name) + "(" + p.Args + ")"
-		if !desiredMap[key] {
+		if !desiredMap[procedureKey(p)] {
 			oldProc := p
 			changes = append(changes, &ProcedureChange{ChangeType: DropProcedure, Procedure: p, OldProcedure: &oldProc})
 		}
 	}
 	return changes
+}
+
+// procedureKey produces a unique identifier for a procedure overload using the
+// schema, name, and normalized argument-type signature. Procedure overloading
+// in Postgres works the same way as for functions — only argument types
+// participate in dispatch, so parameter names and DEFAULTs must be stripped
+// before keying.
+func procedureKey(p parser.Procedure) string {
+	return objectKey(p.Schema, p.Name) + "(" + normalizeFunctionSignature(p.Args) + ")"
+}
+
+// dropProcedureSQL emits a DROP PROCEDURE statement using the normalized
+// argument signature so the resulting SQL is unambiguous regardless of how
+// many overloads exist.
+func dropProcedureSQL(p parser.Procedure) string {
+	if p.Args == "" {
+		return fmt.Sprintf("DROP PROCEDURE %s;", qualifiedName(p.Schema, p.Name))
+	}
+	return fmt.Sprintf("DROP PROCEDURE %s(%s);",
+		qualifiedName(p.Schema, p.Name),
+		normalizeFunctionSignature(p.Args))
 }

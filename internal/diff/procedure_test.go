@@ -122,7 +122,7 @@ func TestProcedureChange_SQL(t *testing.T) {
 					Args: "p_id integer",
 				},
 			},
-			want: []string{"DROP PROCEDURE", "old_proc", "p_id integer"},
+			want: []string{"DROP PROCEDURE", "old_proc", "(integer)"},
 		},
 		{
 			name: "drop procedure without args",
@@ -211,5 +211,154 @@ func TestProcedureChange_IsReversible(t *testing.T) {
 	}
 	if dropChangeNoOld.IsReversible() {
 		t.Error("DropProcedure without OldProcedure should not be reversible")
+	}
+}
+
+func TestCompare_ProcedureParameterRenameNoChange(t *testing.T) {
+	current := &parser.Schema{
+		Procedures: []parser.Procedure{
+			{Name: "my_proc", Args: "p_x integer", Language: "plpgsql", Body: "BEGIN NULL; END;"},
+		},
+	}
+	desired := &parser.Schema{
+		Procedures: []parser.Procedure{
+			{Name: "my_proc", Args: "x integer", Language: "plpgsql", Body: "BEGIN NULL; END;"},
+		},
+	}
+
+	changes := Compare(current, desired)
+
+	for _, c := range changes {
+		if c.ObjectName() == "my_proc" {
+			t.Errorf("parameter rename should not produce a change, got %v", c.Type())
+		}
+	}
+}
+
+func TestCompare_ProcedureDefaultAddNoChange(t *testing.T) {
+	current := &parser.Schema{
+		Procedures: []parser.Procedure{
+			{Name: "my_proc", Args: "x integer", Language: "plpgsql", Body: "BEGIN NULL; END;"},
+		},
+	}
+	desired := &parser.Schema{
+		Procedures: []parser.Procedure{
+			{Name: "my_proc", Args: "x integer DEFAULT 0", Language: "plpgsql", Body: "BEGIN NULL; END;"},
+		},
+	}
+
+	changes := Compare(current, desired)
+
+	for _, c := range changes {
+		if c.ObjectName() == "my_proc" {
+			t.Errorf("DEFAULT-only change should not be treated as overload change, got %v", c.Type())
+		}
+	}
+}
+
+func TestCompare_ProcedureBodyWhitespaceOnly(t *testing.T) {
+	current := &parser.Schema{
+		Procedures: []parser.Procedure{
+			{Name: "my_proc", Args: "", Language: "plpgsql", Body: "BEGIN NULL; END;"},
+		},
+	}
+	desired := &parser.Schema{
+		Procedures: []parser.Procedure{
+			{Name: "my_proc", Args: "", Language: "plpgsql", Body: "BEGIN\n  NULL;\nEND;\n"},
+		},
+	}
+
+	changes := Compare(current, desired)
+
+	for _, c := range changes {
+		if c.Type() == AlterProcedure && c.ObjectName() == "my_proc" {
+			t.Error("whitespace-only body difference should not produce AlterProcedure")
+		}
+	}
+}
+
+func TestCompare_ProcedureBodyCommentOnly(t *testing.T) {
+	current := &parser.Schema{
+		Procedures: []parser.Procedure{
+			{Name: "my_proc", Args: "", Language: "plpgsql", Body: "BEGIN NULL; END;"},
+		},
+	}
+	desired := &parser.Schema{
+		Procedures: []parser.Procedure{
+			{Name: "my_proc", Args: "", Language: "plpgsql", Body: "BEGIN -- noop\nNULL; /* still nothing */ END;"},
+		},
+	}
+
+	changes := Compare(current, desired)
+
+	for _, c := range changes {
+		if c.Type() == AlterProcedure && c.ObjectName() == "my_proc" {
+			t.Error("comment-only body difference should not produce AlterProcedure")
+		}
+	}
+}
+
+func TestCompare_ProcedureBodySemanticChange(t *testing.T) {
+	current := &parser.Schema{
+		Procedures: []parser.Procedure{
+			{Name: "my_proc", Args: "", Language: "plpgsql", Body: "BEGIN INSERT INTO t VALUES (1); END;"},
+		},
+	}
+	desired := &parser.Schema{
+		Procedures: []parser.Procedure{
+			{Name: "my_proc", Args: "", Language: "plpgsql", Body: "BEGIN INSERT INTO t VALUES (2); END;"},
+		},
+	}
+
+	changes := Compare(current, desired)
+
+	found := false
+	for _, c := range changes {
+		if c.Type() == AlterProcedure && c.ObjectName() == "my_proc" {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("genuine body change should still produce AlterProcedure")
+	}
+}
+
+func TestCompare_ProcedureOverloads_DistinctSignatures(t *testing.T) {
+	current := &parser.Schema{
+		Procedures: []parser.Procedure{
+			{Name: "p", Args: "x integer", Language: "plpgsql", Body: "BEGIN NULL; END;"},
+			{Name: "p", Args: "x integer, y text", Language: "plpgsql", Body: "BEGIN NULL; END;"},
+		},
+	}
+	desired := &parser.Schema{
+		Procedures: []parser.Procedure{
+			{Name: "p", Args: "x integer", Language: "plpgsql", Body: "BEGIN NULL; END;"},
+			{Name: "p", Args: "x integer, y text", Language: "plpgsql", Body: "BEGIN NULL; END;"},
+		},
+	}
+
+	changes := Compare(current, desired)
+
+	for _, c := range changes {
+		if c.ObjectName() == "p" {
+			t.Errorf("matched overloads should produce no change, got %v", c.Type())
+		}
+	}
+}
+
+func TestProcedureChange_DropIncludesNormalizedSignature(t *testing.T) {
+	change := &ProcedureChange{
+		ChangeType: DropProcedure,
+		Procedure: parser.Procedure{
+			Schema: "public",
+			Name:   "p",
+			Args:   "p_x integer, p_y text DEFAULT ''",
+		},
+	}
+
+	sql := change.SQL()
+	want := "DROP PROCEDURE p(integer, text);"
+	if sql != want {
+		t.Errorf("DROP PROCEDURE SQL = %q, want %q", sql, want)
 	}
 }
