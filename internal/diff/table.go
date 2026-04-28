@@ -210,11 +210,102 @@ func compareTableColumns(current, desired parser.Table) *TableChange {
 		}
 	}
 
-	if len(change.AddColumns) == 0 && len(change.DropColumns) == 0 && len(change.AlterColumns) == 0 {
+	// Constraint diff: detect adds, drops, and signature-level changes
+	// (column list, ref table, etc.). A change is modeled as drop + add of
+	// the same name so the ALTER stream stays simple. Names match by
+	// constraint name; if a constraint's signature changes under a stable
+	// name, we emit a drop-then-add pair to reflect that.
+	currentConstraints := make(map[string]parser.Constraint)
+	for _, c := range current.Constraints {
+		if c.Name != "" {
+			currentConstraints[c.Name] = c
+		}
+	}
+
+	desiredConstraints := make(map[string]parser.Constraint)
+	for _, c := range desired.Constraints {
+		if c.Name != "" {
+			desiredConstraints[c.Name] = c
+		}
+	}
+
+	for name, desiredC := range desiredConstraints {
+		currentC, exists := currentConstraints[name]
+		if !exists {
+			change.AddConstraints = append(change.AddConstraints, desiredC)
+			continue
+		}
+		if !constraintEqual(currentC, desiredC) {
+			change.DropConstraints = append(change.DropConstraints, name)
+			change.AddConstraints = append(change.AddConstraints, desiredC)
+		}
+	}
+
+	for name := range currentConstraints {
+		if _, exists := desiredConstraints[name]; !exists {
+			change.DropConstraints = append(change.DropConstraints, name)
+		}
+	}
+
+	if len(change.AddColumns) == 0 && len(change.DropColumns) == 0 && len(change.AlterColumns) == 0 &&
+		len(change.AddConstraints) == 0 && len(change.DropConstraints) == 0 {
 		return nil
 	}
 
 	return change
+}
+
+// constraintEqual compares two constraints by their effective definition
+// (type, columns, references, check expression, exclusion options). Used
+// to detect when a constraint's signature changes under a stable name —
+// e.g., a primary key that grows from (a, b) to (a, b, c) — so we can
+// emit a drop-then-add pair instead of silently treating it as unchanged.
+func constraintEqual(a, b parser.Constraint) bool {
+	if a.Type != b.Type {
+		return false
+	}
+	if !stringSliceEqual(a.Columns, b.Columns) {
+		return false
+	}
+	if a.RefTable != b.RefTable {
+		return false
+	}
+	if !stringSliceEqual(a.RefColumns, b.RefColumns) {
+		return false
+	}
+	if a.OnDelete != b.OnDelete || a.OnUpdate != b.OnUpdate {
+		return false
+	}
+	if a.Check != b.Check {
+		return false
+	}
+	if a.ExclusionUsing != b.ExclusionUsing || a.ExclusionWhere != b.ExclusionWhere {
+		return false
+	}
+	if len(a.ExclusionOperators) != len(b.ExclusionOperators) {
+		return false
+	}
+	for k, v := range a.ExclusionOperators {
+		if b.ExclusionOperators[k] != v {
+			return false
+		}
+	}
+	if a.WithoutOverlaps != b.WithoutOverlaps || a.PeriodColumn != b.PeriodColumn {
+		return false
+	}
+	return true
+}
+
+func stringSliceEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }
 
 func compareColumn(current, desired parser.Column) *ColumnAlteration {
@@ -521,12 +612,128 @@ func generateAlterTable(c *TableChange) string {
 		}
 	}
 
+	// Drop constraints before adding new ones — a renamed/reshaped PK
+	// needs the old one gone before the new one can land. Foreign keys and
+	// unique constraints follow the same pattern.
+	for _, name := range c.DropConstraints {
+		stmts = append(stmts, fmt.Sprintf("ALTER TABLE %s DROP CONSTRAINT %s;",
+			tableName, quoteIdent(name)))
+	}
+
+	for _, constraint := range c.AddConstraints {
+		if def := generateConstraintAdd(tableName, constraint); def != "" {
+			stmts = append(stmts, def)
+		}
+	}
+
 	return strings.Join(stmts, "\n")
+}
+
+// generateConstraintAdd emits a `ALTER TABLE ... ADD CONSTRAINT ...`
+// statement matching the inline constraint syntax used in CREATE TABLE.
+// Constraint types covered today: PRIMARY KEY, UNIQUE, FOREIGN KEY,
+// CHECK, EXCLUDE. Unknown types fall through with a TODO comment so the
+// migration apply still succeeds and the gap is visible.
+func generateConstraintAdd(tableName string, c parser.Constraint) string {
+	if c.Name == "" {
+		return ""
+	}
+	prefix := fmt.Sprintf("ALTER TABLE %s ADD CONSTRAINT %s", tableName, quoteIdent(c.Name))
+	switch c.Type {
+	case "PRIMARY KEY":
+		cols := strings.Join(quoteIdents(c.Columns), ", ")
+		if c.WithoutOverlaps && c.PeriodColumn != "" {
+			cols = fmt.Sprintf("%s, %s WITHOUT OVERLAPS", cols, quoteIdent(c.PeriodColumn))
+		}
+		return fmt.Sprintf("%s PRIMARY KEY (%s);", prefix, cols)
+	case "UNIQUE":
+		cols := strings.Join(quoteIdents(c.Columns), ", ")
+		if c.WithoutOverlaps && c.PeriodColumn != "" {
+			cols = fmt.Sprintf("%s, %s WITHOUT OVERLAPS", cols, quoteIdent(c.PeriodColumn))
+		}
+		return fmt.Sprintf("%s UNIQUE (%s);", prefix, cols)
+	case "FOREIGN KEY":
+		refTable := c.RefTable
+		if !strings.Contains(refTable, ".") {
+			refTable = quoteIdent(refTable)
+		}
+		stmt := fmt.Sprintf("%s FOREIGN KEY (%s) REFERENCES %s (%s)",
+			prefix,
+			strings.Join(quoteIdents(c.Columns), ", "),
+			refTable,
+			strings.Join(quoteIdents(c.RefColumns), ", "))
+		if c.OnDelete != "" && c.OnDelete != "NO ACTION" {
+			stmt += fmt.Sprintf(" ON DELETE %s", c.OnDelete)
+		}
+		if c.OnUpdate != "" && c.OnUpdate != "NO ACTION" {
+			stmt += fmt.Sprintf(" ON UPDATE %s", c.OnUpdate)
+		}
+		return stmt + ";"
+	case "CHECK":
+		return fmt.Sprintf("%s CHECK (%s);", prefix, c.Check)
+	case "EXCLUDE":
+		stmt := fmt.Sprintf("%s EXCLUDE", prefix)
+		if c.ExclusionUsing != "" {
+			stmt += fmt.Sprintf(" USING %s", c.ExclusionUsing)
+		}
+		var elems []string
+		for _, col := range c.Columns {
+			op := c.ExclusionOperators[col]
+			if op == "" {
+				elems = append(elems, quoteIdent(col))
+			} else {
+				elems = append(elems, fmt.Sprintf("%s WITH %s", quoteIdent(col), op))
+			}
+		}
+		stmt += fmt.Sprintf(" (%s)", strings.Join(elems, ", "))
+		if c.ExclusionWhere != "" {
+			stmt += fmt.Sprintf(" WHERE (%s)", c.ExclusionWhere)
+		}
+		return stmt + ";"
+	default:
+		return fmt.Sprintf("-- TODO: add %s constraint %s on %s (unsupported in shrugged constraint diff)",
+			c.Type, c.Name, tableName)
+	}
 }
 
 func generateAlterTableDown(c *TableChange) string {
 	var stmts []string
 	tableName := qualifiedName(c.Table.Schema, c.Table.Name)
+
+	// Constraint reversal must precede column drops: a column that's part
+	// of a PK / UNIQUE / FK constraint can't be dropped while that
+	// constraint references it. Reverse-order pairing of the up direction:
+	// drop the constraints we added, restore the constraints we dropped,
+	// then drop the columns we added. OldTable carries the original
+	// constraint definitions so we can rebuild them by name.
+	var oldConstraints map[string]parser.Constraint
+	if c.OldTable != nil {
+		oldConstraints = make(map[string]parser.Constraint, len(c.OldTable.Constraints))
+		for _, oc := range c.OldTable.Constraints {
+			if oc.Name != "" {
+				oldConstraints[oc.Name] = oc
+			}
+		}
+	}
+
+	for _, added := range c.AddConstraints {
+		if added.Name == "" {
+			continue
+		}
+		stmts = append(stmts, fmt.Sprintf("ALTER TABLE %s DROP CONSTRAINT %s;",
+			tableName, quoteIdent(added.Name)))
+	}
+
+	for _, name := range c.DropConstraints {
+		if oldC, ok := oldConstraints[name]; ok {
+			if def := generateConstraintAdd(tableName, oldC); def != "" {
+				stmts = append(stmts, def)
+			}
+		} else {
+			stmts = append(stmts, fmt.Sprintf("-- IRREVERSIBLE: original definition of constraint %s on %s unavailable",
+				name, tableName))
+		}
+	}
 
 	for _, col := range c.AddColumns {
 		stmts = append(stmts, fmt.Sprintf("ALTER TABLE %s DROP COLUMN %s;", tableName, quoteIdent(col.Name)))

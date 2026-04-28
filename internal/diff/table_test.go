@@ -119,6 +119,142 @@ func TestCompare_AlterTable_DropColumn(t *testing.T) {
 	}
 }
 
+func TestCompare_AlterTable_AddConstraint(t *testing.T) {
+	current := &parser.Schema{
+		Tables: []parser.Table{
+			{Name: "users", Columns: []parser.Column{{Name: "id", Type: "integer"}}},
+		},
+	}
+	desired := &parser.Schema{
+		Tables: []parser.Table{
+			{
+				Name:    "users",
+				Columns: []parser.Column{{Name: "id", Type: "integer"}},
+				Constraints: []parser.Constraint{
+					{Name: "users_pkey", Type: "PRIMARY KEY", Columns: []string{"id"}},
+				},
+			},
+		},
+	}
+
+	changes := Compare(current, desired)
+	found := false
+	for _, c := range changes {
+		if tc, ok := c.(*TableChange); ok && tc.ObjectName() == "users" {
+			if len(tc.AddConstraints) == 1 && tc.AddConstraints[0].Name == "users_pkey" {
+				found = true
+			}
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected AddConstraints to include users_pkey, got %#v", changes)
+	}
+}
+
+func TestCompare_AlterTable_DropConstraint(t *testing.T) {
+	current := &parser.Schema{
+		Tables: []parser.Table{
+			{
+				Name:    "users",
+				Columns: []parser.Column{{Name: "id", Type: "integer"}},
+				Constraints: []parser.Constraint{
+					{Name: "users_pkey", Type: "PRIMARY KEY", Columns: []string{"id"}},
+				},
+			},
+		},
+	}
+	desired := &parser.Schema{
+		Tables: []parser.Table{
+			{Name: "users", Columns: []parser.Column{{Name: "id", Type: "integer"}}},
+		},
+	}
+
+	changes := Compare(current, desired)
+	found := false
+	for _, c := range changes {
+		if tc, ok := c.(*TableChange); ok && tc.ObjectName() == "users" {
+			if len(tc.DropConstraints) == 1 && tc.DropConstraints[0] == "users_pkey" {
+				found = true
+			}
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected DropConstraints to include users_pkey, got %#v", changes)
+	}
+}
+
+func TestCompare_AlterTable_ChangePrimaryKeyColumns(t *testing.T) {
+	// PK signature change under stable name → drop + re-add.
+	current := &parser.Schema{
+		Tables: []parser.Table{
+			{
+				Name: "events",
+				Columns: []parser.Column{
+					{Name: "chain_id", Type: "bigint"},
+					{Name: "address", Type: "text"},
+				},
+				Constraints: []parser.Constraint{
+					{Name: "events_pkey", Type: "PRIMARY KEY", Columns: []string{"chain_id", "address"}},
+				},
+			},
+		},
+	}
+	desired := &parser.Schema{
+		Tables: []parser.Table{
+			{
+				Name: "events",
+				Columns: []parser.Column{
+					{Name: "chain_id", Type: "bigint"},
+					{Name: "address", Type: "text"},
+					{Name: "tx_hash", Type: "text"},
+				},
+				Constraints: []parser.Constraint{
+					{Name: "events_pkey", Type: "PRIMARY KEY", Columns: []string{"chain_id", "address", "tx_hash"}},
+				},
+			},
+		},
+	}
+
+	changes := Compare(current, desired)
+	var tc *TableChange
+	for _, c := range changes {
+		if t, ok := c.(*TableChange); ok && t.ObjectName() == "events" {
+			tc = t
+			break
+		}
+	}
+	if tc == nil {
+		t.Fatalf("expected an AlterTable change for events, got %#v", changes)
+	}
+	if len(tc.DropConstraints) != 1 || tc.DropConstraints[0] != "events_pkey" {
+		t.Fatalf("expected DropConstraints=[events_pkey], got %v", tc.DropConstraints)
+	}
+	if len(tc.AddConstraints) != 1 || len(tc.AddConstraints[0].Columns) != 3 {
+		t.Fatalf("expected AddConstraints with 3-col PK, got %#v", tc.AddConstraints)
+	}
+
+	upSQL := tc.SQL()
+	if !strings.Contains(upSQL, "ADD COLUMN tx_hash") ||
+		!strings.Contains(upSQL, "DROP CONSTRAINT events_pkey") ||
+		!strings.Contains(upSQL, "ADD CONSTRAINT events_pkey PRIMARY KEY (chain_id, address, tx_hash)") {
+		t.Fatalf("up SQL missing expected statements:\n%s", upSQL)
+	}
+
+	downSQL := tc.DownSQL()
+	// Constraint reversal must come before column drop — column is part of
+	// the new PK, so it can't be dropped while the PK references it.
+	dropConstraintIdx := strings.Index(downSQL, "DROP CONSTRAINT events_pkey")
+	dropColumnIdx := strings.Index(downSQL, "DROP COLUMN tx_hash")
+	if dropConstraintIdx < 0 || dropColumnIdx < 0 {
+		t.Fatalf("down SQL missing expected statements:\n%s", downSQL)
+	}
+	if dropConstraintIdx > dropColumnIdx {
+		t.Fatalf("down SQL drops column before its PK constraint:\n%s", downSQL)
+	}
+}
+
 func TestCompare_AlterTable_ChangeColumnType(t *testing.T) {
 	current := &parser.Schema{
 		Tables: []parser.Table{
