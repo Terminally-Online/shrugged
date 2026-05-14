@@ -13,8 +13,6 @@ services:
       timeout: 5s
       retries: 5
 
-      test
-
   shrugged-api:
     build:
       context: .
