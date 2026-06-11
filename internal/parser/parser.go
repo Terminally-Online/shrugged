@@ -47,6 +47,7 @@ type Table struct {
 	PartitionKey   string
 	PartitionOf    string
 	PartitionBound string
+	Unlogged       bool
 }
 
 type Column struct {
@@ -703,6 +704,18 @@ func sortTablesByDependency(tables []Table) []Table {
 	return sorted
 }
 
+// unloggedKeyword returns the "UNLOGGED " token (trailing space) when a table is
+// unlogged, else empty — so it slots directly into "CREATE %sTABLE". Unlogged
+// tables are derived/rebuildable read models: Postgres skips WAL for them, which
+// is the whole reason a caller marks one unlogged, so the attribute must survive
+// the schema round-trip and land in the generated DDL.
+func unloggedKeyword(unlogged bool) string {
+	if unlogged {
+		return "UNLOGGED "
+	}
+	return ""
+}
+
 func generateCreateTable(t Table) string {
 	var sb strings.Builder
 
@@ -714,7 +727,7 @@ func generateCreateTable(t Table) string {
 		return sb.String()
 	}
 
-	sb.WriteString(fmt.Sprintf("CREATE TABLE %s (\n", qualifiedName(t.Schema, t.Name)))
+	sb.WriteString(fmt.Sprintf("CREATE %sTABLE %s (\n", unloggedKeyword(t.Unlogged), qualifiedName(t.Schema, t.Name)))
 
 	for i, col := range t.Columns {
 		sb.WriteString(fmt.Sprintf("    %s %s", quoteIdent(col.Name), col.Type))

@@ -114,6 +114,10 @@ func loadTables(ctx context.Context, conn *pgx.Conn, schema *parser.Schema) erro
 		return err
 	}
 
+	if err := loadTablePersistence(ctx, conn, tableMap); err != nil {
+		return err
+	}
+
 	if err := loadPartitionInfo(ctx, conn, tableMap); err != nil {
 		return err
 	}
@@ -215,6 +219,36 @@ func loadConstraints(ctx context.Context, conn *pgx.Conn, tableMap map[string]*p
 	}
 
 	return nil
+}
+
+// loadTablePersistence marks unlogged tables. relpersistence is 'u' for unlogged,
+// 'p' for permanent, 't' for temporary; information_schema does not expose it, so
+// it is read straight from pg_class. Unlogged is load-bearing for derived read
+// models (no WAL), so it must survive introspection into the diff.
+func loadTablePersistence(ctx context.Context, conn *pgx.Conn, tableMap map[string]*parser.Table) error {
+	rows, err := conn.Query(ctx, `
+		SELECT n.nspname AS schema_name, c.relname AS table_name
+		FROM pg_class c
+		JOIN pg_namespace n ON c.relnamespace = n.oid
+		WHERE c.relkind IN ('r', 'p')
+		AND c.relpersistence = 'u'
+		AND n.nspname NOT IN ('pg_catalog', 'information_schema', 'pg_toast')
+	`)
+	if err != nil {
+		return fmt.Errorf("failed to query table persistence: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var schemaName, tableName string
+		if err := rows.Scan(&schemaName, &tableName); err != nil {
+			return fmt.Errorf("failed to scan table persistence: %w", err)
+		}
+		if table, ok := tableMap[schemaName+"."+tableName]; ok {
+			table.Unlogged = true
+		}
+	}
+	return rows.Err()
 }
 
 func loadPartitionInfo(ctx context.Context, conn *pgx.Conn, tableMap map[string]*parser.Table) error {

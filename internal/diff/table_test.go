@@ -30,6 +30,55 @@ func TestCompare_CreateTable(t *testing.T) {
 	}
 }
 
+func TestCompare_CreateUnloggedTable(t *testing.T) {
+	current := &parser.Schema{}
+	desired := &parser.Schema{
+		Tables: []parser.Table{
+			{Name: "pool_price", Unlogged: true, Columns: []parser.Column{{Name: "id", Type: "integer"}}},
+		},
+	}
+
+	changes := Compare(current, desired)
+
+	var sql string
+	for _, c := range changes {
+		if c.Type() == CreateTable && c.ObjectName() == "pool_price" {
+			sql = c.SQL()
+		}
+	}
+	if sql == "" {
+		t.Fatal("expected CreateTable change for pool_price")
+	}
+	if !strings.Contains(sql, "CREATE UNLOGGED TABLE") {
+		t.Errorf("expected CREATE UNLOGGED TABLE, got: %s", sql)
+	}
+}
+
+func TestCompare_AlterTable_SetUnlogged(t *testing.T) {
+	cols := []parser.Column{{Name: "id", Type: "integer"}}
+	current := &parser.Schema{Tables: []parser.Table{{Name: "pool_price", Unlogged: false, Columns: cols}}}
+	desired := &parser.Schema{Tables: []parser.Table{{Name: "pool_price", Unlogged: true, Columns: cols}}}
+
+	changes := Compare(current, desired)
+
+	var up, down string
+	for _, c := range changes {
+		if c.Type() == AlterTable && c.ObjectName() == "pool_price" {
+			up = c.SQL()
+			down = c.DownSQL()
+		}
+	}
+	if up == "" {
+		t.Fatal("expected AlterTable change for logged->unlogged persistence flip")
+	}
+	if !strings.Contains(up, "SET UNLOGGED;") {
+		t.Errorf("expected SET UNLOGGED in up migration, got: %s", up)
+	}
+	if !strings.Contains(down, "SET LOGGED;") {
+		t.Errorf("expected SET LOGGED in down migration, got: %s", down)
+	}
+}
+
 func TestCompare_DropTable(t *testing.T) {
 	current := &parser.Schema{
 		Tables: []parser.Table{

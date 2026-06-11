@@ -16,6 +16,7 @@ type TableChange struct {
 	AlterColumns    []ColumnAlteration
 	AddConstraints  []parser.Constraint
 	DropConstraints []string
+	SetUnlogged     *bool
 }
 
 type ColumnAlteration struct {
@@ -247,8 +248,13 @@ func compareTableColumns(current, desired parser.Table) *TableChange {
 		}
 	}
 
+	if current.Unlogged != desired.Unlogged {
+		v := desired.Unlogged
+		change.SetUnlogged = &v
+	}
+
 	if len(change.AddColumns) == 0 && len(change.DropColumns) == 0 && len(change.AlterColumns) == 0 &&
-		len(change.AddConstraints) == 0 && len(change.DropConstraints) == 0 {
+		len(change.AddConstraints) == 0 && len(change.DropConstraints) == 0 && change.SetUnlogged == nil {
 		return nil
 	}
 
@@ -362,7 +368,11 @@ func generateCreateTable(t parser.Table) string {
 		return sb.String()
 	}
 
-	sb.WriteString(fmt.Sprintf("CREATE TABLE %s (\n", qualifiedName(t.Schema, t.Name)))
+	unlogged := ""
+	if t.Unlogged {
+		unlogged = "UNLOGGED "
+	}
+	sb.WriteString(fmt.Sprintf("CREATE %sTABLE %s (\n", unlogged, qualifiedName(t.Schema, t.Name)))
 
 	for i, col := range t.Columns {
 		sb.WriteString(fmt.Sprintf("    %s %s", quoteIdent(col.Name), col.Type))
@@ -626,7 +636,19 @@ func generateAlterTable(c *TableChange) string {
 		}
 	}
 
+	if c.SetUnlogged != nil {
+		stmts = append(stmts, fmt.Sprintf("ALTER TABLE %s SET %s;", tableName, persistenceKeyword(*c.SetUnlogged)))
+	}
+
 	return strings.Join(stmts, "\n")
+}
+
+// persistenceKeyword maps the SetUnlogged flag to the ALTER TABLE ... SET token.
+func persistenceKeyword(unlogged bool) string {
+	if unlogged {
+		return "UNLOGGED"
+	}
+	return "LOGGED"
 }
 
 // generateConstraintAdd emits a `ALTER TABLE ... ADD CONSTRAINT ...`
@@ -810,6 +832,10 @@ func generateAlterTableDown(c *TableChange) string {
 				stmts = append(stmts, fmt.Sprintf("-- IRREVERSIBLE: Cannot directly change generated column type for %s", colName))
 			}
 		}
+	}
+
+	if c.SetUnlogged != nil {
+		stmts = append(stmts, fmt.Sprintf("ALTER TABLE %s SET %s;", tableName, persistenceKeyword(!*c.SetUnlogged)))
 	}
 
 	return strings.Join(stmts, "\n")
