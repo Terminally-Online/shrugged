@@ -138,6 +138,10 @@ func TestToCamelCase(t *testing.T) {
 		{"avatar_url", "avatarURL"},
 		{"display_name", "displayName"},
 		{"with-dashes", "withDashes"},
+		{"chain_ids", "chainIDs"},
+		{"ids", "ids"},
+		{"image_urls", "imageURLs"},
+		{"user_uuids", "userUUIDs"},
 	}
 
 	for _, tt := range tests {
@@ -174,6 +178,10 @@ func TestToPascalCase(t *testing.T) {
 		{"already_pascal", "AlreadyPascal"},
 		{"with-dashes", "WithDashes"},
 		{"multiple__underscores", "MultipleUnderscores"},
+		{"chain_ids", "ChainIDs"},
+		{"ids", "IDs"},
+		{"image_urls", "ImageURLs"},
+		{"user_uuids", "UserUUIDs"},
 	}
 
 	for _, tt := range tests {

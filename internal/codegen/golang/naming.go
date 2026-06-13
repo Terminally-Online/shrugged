@@ -29,6 +29,23 @@ func isCommonInitialism(s string) bool {
 	return commonInitialisms[s]
 }
 
+// initialismForm returns the idiomatic Go casing for a single word when it is a
+// common initialism or its regular plural, and reports whether it matched. A
+// plural initialism keeps the acronym uppercased with a lowercase trailing s, as
+// Go style dictates: "ids" -> "IDs", "urls" -> "URLs", "uuids" -> "UUIDs".
+func initialismForm(word string) (string, bool) {
+	upper := strings.ToUpper(word)
+	if isCommonInitialism(upper) {
+		return upper, true
+	}
+	if len(upper) > 1 && strings.HasSuffix(upper, "S") {
+		if singular := upper[:len(upper)-1]; isCommonInitialism(singular) {
+			return singular + "s", true
+		}
+	}
+	return "", false
+}
+
 func splitWords(s string) []string {
 	return strings.FieldsFunc(s, func(r rune) bool {
 		return r == '_' || r == '-' || r == ' '
@@ -43,9 +60,8 @@ func toPascalCase(s string) string {
 		if len(word) == 0 {
 			continue
 		}
-		upper := strings.ToUpper(word)
-		if isCommonInitialism(upper) {
-			result.WriteString(upper)
+		if form, ok := initialismForm(word); ok {
+			result.WriteString(form)
 		} else {
 			result.WriteString(strings.ToUpper(string(word[0])))
 			result.WriteString(strings.ToLower(word[1:]))
@@ -63,16 +79,16 @@ func toCamelCase(s string) string {
 		if len(word) == 0 {
 			continue
 		}
-		upper := strings.ToUpper(word)
+		form, isInitialism := initialismForm(word)
 		if i == 0 {
-			if isCommonInitialism(upper) {
-				result.WriteString(strings.ToLower(upper))
+			if isInitialism {
+				result.WriteString(strings.ToLower(form))
 			} else {
 				result.WriteString(strings.ToLower(word))
 			}
 		} else {
-			if isCommonInitialism(upper) {
-				result.WriteString(upper)
+			if isInitialism {
+				result.WriteString(form)
 			} else {
 				result.WriteString(strings.ToUpper(string(word[0])))
 				result.WriteString(strings.ToLower(word[1:]))
