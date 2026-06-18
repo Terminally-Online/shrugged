@@ -7,6 +7,49 @@ import (
 	"github.com/terminally-online/shrugged/internal/parser"
 )
 
+func TestCompare_IndexDefinitionChanged(t *testing.T) {
+	// Same index name, different definition (changed WHERE predicate). A name-only
+	// comparison treats this as unchanged; the diff must emit a DROP + CREATE so the
+	// redefinition actually reaches the database.
+	current := &parser.Schema{
+		Indexes: []parser.Index{
+			{Name: "idx_bucket", Table: "attr", Definition: "CREATE INDEX idx_bucket ON attr USING btree (m) WHERE (name = 'x'::text)"},
+		},
+	}
+	desired := &parser.Schema{
+		Indexes: []parser.Index{
+			{Name: "idx_bucket", Table: "attr", Definition: "CREATE INDEX idx_bucket ON attr USING btree (m, name) WHERE (name ~~ 'x:%'::text)"},
+		},
+	}
+
+	var dropped, created bool
+	for _, c := range Compare(current, desired) {
+		if c.ObjectName() != "idx_bucket" {
+			continue
+		}
+		switch c.Type() {
+		case DropIndex:
+			dropped = true
+		case CreateIndex:
+			created = true
+		}
+	}
+	if !dropped || !created {
+		t.Errorf("definition change must emit DROP+CREATE (dropped=%v created=%v)", dropped, created)
+	}
+}
+
+func TestCompare_IndexDefinitionUnchanged(t *testing.T) {
+	// Identical definition (ignoring a trailing semicolon/whitespace) must be a no-op.
+	idx := "CREATE INDEX idx_a ON t USING btree (c) WHERE (name ~~ 'x:%'::text)"
+	current := &parser.Schema{Indexes: []parser.Index{{Name: "idx_a", Table: "t", Definition: idx}}}
+	desired := &parser.Schema{Indexes: []parser.Index{{Name: "idx_a", Table: "t", Definition: idx + ";"}}}
+
+	if changes := Compare(current, desired); len(changes) != 0 {
+		t.Errorf("identical index definition must produce no changes, got %d", len(changes))
+	}
+}
+
 func TestCompare_CreateIndex(t *testing.T) {
 	current := &parser.Schema{}
 	desired := &parser.Schema{

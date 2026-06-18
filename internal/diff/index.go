@@ -65,7 +65,19 @@ func compareIndexes(current, desired []parser.Index) []Change {
 	}
 
 	for _, i := range desired {
-		if _, exists := currentMap[i.Name]; !exists {
+		cur, exists := currentMap[i.Name]
+		if !exists {
+			changes = append(changes, &IndexChange{ChangeType: CreateIndex, Index: i})
+			continue
+		}
+		// Same name, changed definition (columns, predicate, uniqueness, …): an
+		// index can't be replaced in place, so drop the current one and recreate
+		// it. Both definitions come from pg_get_indexdef — current and desired are
+		// each introspected from Postgres — so the comparison is normalized and a
+		// textual definition change is a real change, not a formatting artifact.
+		if !indexesEqual(cur, i) {
+			oldIdx := cur
+			changes = append(changes, &IndexChange{ChangeType: DropIndex, Index: cur, OldIndex: &oldIdx})
 			changes = append(changes, &IndexChange{ChangeType: CreateIndex, Index: i})
 		}
 	}
@@ -78,6 +90,18 @@ func compareIndexes(current, desired []parser.Index) []Change {
 	}
 
 	return changes
+}
+
+// indexesEqual reports whether two indexes are structurally identical. Both
+// definitions originate from pg_get_indexdef (the diff compares two introspected
+// schemas), so a normalized definition comparison is exact — it catches predicate,
+// column, ordering, and uniqueness changes a name-only comparison misses.
+func indexesEqual(a, b parser.Index) bool {
+	return normalizeIndexDef(a.Definition) == normalizeIndexDef(b.Definition)
+}
+
+func normalizeIndexDef(def string) string {
+	return strings.TrimSuffix(strings.TrimSpace(def), ";")
 }
 
 func generateCreateIndex(i parser.Index) string {
