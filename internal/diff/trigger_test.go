@@ -205,3 +205,70 @@ func TestTriggerChange_IsReversible(t *testing.T) {
 		t.Error("DropTrigger without OldTrigger should not be reversible")
 	}
 }
+
+func TestTriggerChange_SQL_PrefersIntrospectedDefinition(t *testing.T) {
+	def := "CREATE TRIGGER trg_clear AFTER INSERT ON address_relationship FOR EACH ROW WHEN (new.relationship_type = 'token:0') EXECUTE FUNCTION clear_price_miss_memo()"
+	change := &TriggerChange{
+		ChangeType: CreateTrigger,
+		Trigger: parser.Trigger{
+			Name:       "trg_clear",
+			Table:      "address_relationship",
+			Definition: def,
+		},
+	}
+
+	got := change.SQL()
+	if got != def+";" {
+		t.Errorf("SQL() = %q, want the canonical definition verbatim", got)
+	}
+	if strings.Contains(got, "FOR EACH  EXECUTE") {
+		t.Error("SQL() rendered from empty structured fields instead of the definition")
+	}
+}
+
+func TestCompare_TriggerDefinitionChangeEmitsDropAndCreate(t *testing.T) {
+	current := &parser.Schema{
+		Triggers: []parser.Trigger{
+			{Name: "trg_clear", Table: "address_relationship", Definition: "CREATE TRIGGER trg_clear AFTER INSERT ON address_relationship FOR EACH ROW EXECUTE FUNCTION clear_price_miss_memo()"},
+		},
+	}
+	desired := &parser.Schema{
+		Triggers: []parser.Trigger{
+			{Name: "trg_clear", Table: "address_relationship", Definition: "CREATE TRIGGER trg_clear AFTER INSERT ON address_relationship FOR EACH ROW WHEN (new.relationship_type = 'token:0') EXECUTE FUNCTION clear_price_miss_memo()"},
+		},
+	}
+
+	changes := Compare(current, desired)
+
+	var drops, creates int
+	for _, c := range changes {
+		if c.ObjectName() != "trg_clear" {
+			continue
+		}
+		switch c.Type() {
+		case DropTrigger:
+			drops++
+		case CreateTrigger:
+			creates++
+		}
+	}
+	if drops != 1 || creates != 1 {
+		t.Errorf("definition change: got %d drops / %d creates, want 1 / 1", drops, creates)
+	}
+}
+
+func TestCompare_TriggerUnchangedDefinitionEmitsNothing(t *testing.T) {
+	def := "CREATE TRIGGER trg_clear AFTER INSERT ON address_relationship FOR EACH ROW EXECUTE FUNCTION clear_price_miss_memo()"
+	current := &parser.Schema{
+		Triggers: []parser.Trigger{{Name: "trg_clear", Table: "address_relationship", Definition: def}},
+	}
+	desired := &parser.Schema{
+		Triggers: []parser.Trigger{{Name: "trg_clear", Table: "address_relationship", Definition: def}},
+	}
+
+	for _, c := range Compare(current, desired) {
+		if c.ObjectName() == "trg_clear" {
+			t.Errorf("unchanged trigger produced change %v", c.Type())
+		}
+	}
+}
