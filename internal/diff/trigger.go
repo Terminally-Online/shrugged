@@ -65,8 +65,17 @@ func compareTriggers(current, desired []parser.Trigger) []Change {
 	}
 
 	for _, t := range desired {
-		if _, exists := currentMap[t.Name]; !exists {
+		old, exists := currentMap[t.Name]
+		if !exists {
 			changes = append(changes, &TriggerChange{ChangeType: CreateTrigger, Trigger: t})
+			continue
+		}
+		if t.Definition != "" && old.Definition != "" && t.Definition != old.Definition {
+			oldTrig := old
+			changes = append(changes,
+				&TriggerChange{ChangeType: DropTrigger, Trigger: old, OldTrigger: &oldTrig},
+				&TriggerChange{ChangeType: CreateTrigger, Trigger: t},
+			)
 		}
 	}
 
@@ -80,7 +89,21 @@ func compareTriggers(current, desired []parser.Trigger) []Change {
 	return changes
 }
 
+// generateCreateTrigger prefers the introspected canonical definition:
+// pg_get_triggerdef returns the complete CREATE TRIGGER statement, including
+// the timing, event list, FOR EACH clause, WHEN predicate, and function call
+// that the field-wise rendering below would need populated individually.
+// Introspection fills only Definition, so rendering from the structured
+// fields there produces a truncated, unparseable statement. The structured
+// path remains for Trigger values constructed without a definition.
 func generateCreateTrigger(t parser.Trigger) string {
+	if def := strings.TrimSpace(t.Definition); def != "" {
+		if !strings.HasSuffix(def, ";") {
+			def += ";"
+		}
+		return def
+	}
+
 	var sb strings.Builder
 
 	sb.WriteString(fmt.Sprintf("CREATE TRIGGER %s ", quoteIdent(t.Name)))
