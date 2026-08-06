@@ -1,0 +1,110 @@
+#!/usr/bin/env bash
+set -uo pipefail
+
+GOLANGCI_LINT_VERSION="v2.11.4"
+PG_IMAGE="postgres:16"
+JOBS=(lint test build)
+
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT"
+TOOLS="$ROOT/.data/verify/bin"
+mkdir -p "$TOOLS"
+export GOLANGCI_LINT_CACHE="$ROOT/.data/verify/cache"
+export CGO_ENABLED=0
+
+OUT="$(mktemp -d)"
+PG_CONTAINER=""
+cleanup() {
+	[[ -n "$PG_CONTAINER" ]] && docker stop "$PG_CONTAINER" >/dev/null 2>&1
+	rm -rf "$OUT"
+}
+trap cleanup EXIT
+
+signoff=false
+[[ "${1:-}" == "--signoff" ]] && signoff=true
+
+ensure_golangci_lint() {
+	"$TOOLS/golangci-lint" version 2>/dev/null | grep -q "${GOLANGCI_LINT_VERSION#v}" && return 0
+	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh |
+		sh -s -- -b "$TOOLS" "$GOLANGCI_LINT_VERSION" >/dev/null 2>&1
+}
+
+start_postgres() {
+	PG_CONTAINER="$(docker run -d --rm \
+		-e POSTGRES_USER=shrugged -e POSTGRES_PASSWORD=shrugged -e POSTGRES_DB=shrugged \
+		-p 127.0.0.1::5432 "$PG_IMAGE")" || return 1
+	local port tries
+	port="$(docker port "$PG_CONTAINER" 5432/tcp | head -1 | awk -F: '{print $NF}')"
+	export DATABASE_URL="postgres://shrugged:shrugged@localhost:${port}/shrugged?sslmode=disable"
+	for tries in $(seq 1 30); do
+		docker exec "$PG_CONTAINER" pg_isready -U shrugged >/dev/null 2>&1 && return 0
+		sleep 1
+	done
+	echo "FAIL: postgres container never became ready"
+	return 1
+}
+
+lint_base() {
+	git fetch -q origin master 2>/dev/null || true
+	local base head
+	head="$(git rev-parse HEAD)"
+	base="$(git merge-base origin/master HEAD 2>/dev/null || true)"
+	if [[ -z "$base" || "$base" == "$head" ]]; then
+		git rev-parse HEAD~1
+	else
+		echo "$base"
+	fi
+}
+
+job_lint() {
+	ensure_golangci_lint || return 1
+	"$TOOLS/golangci-lint" run --allow-parallel-runners --timeout=5m --new-from-rev="$(lint_base)"
+}
+
+job_test() {
+	go test -p 1 ./...
+}
+
+job_build() {
+	go build ./...
+}
+
+start_postgres || {
+	echo "FAIL: database unavailable; the suite requires it"
+	exit 1
+}
+
+run_job() {
+	local name="$1" start="$SECONDS"
+	if "job_$name" >"$OUT/$name.log" 2>&1; then
+		echo ok >"$OUT/$name.status"
+	else
+		echo fail >"$OUT/$name.status"
+	fi
+	echo $((SECONDS - start)) >"$OUT/$name.time"
+}
+
+for j in "${JOBS[@]}"; do
+	run_job "$j" &
+done
+wait
+
+failed=()
+for j in "${JOBS[@]}"; do
+	printf '%-10s %-6s %ss\n' "$j" "$(cat "$OUT/$j.status")" "$(cat "$OUT/$j.time")"
+	[[ "$(cat "$OUT/$j.status")" == ok ]] || failed+=("$j")
+done
+
+if ((${#failed[@]})); then
+	for j in "${failed[@]}"; do
+		printf '\n────── %s ──────\n' "$j"
+		cat "$OUT/$j.log"
+	done
+	exit 1
+fi
+
+if $signoff; then
+	gh signoff "${JOBS[@]}" || exit 1
+fi
+
+echo verified
