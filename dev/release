@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT"
+TARGETS="linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64"
+
+[[ -n "${1:-}" ]] || {
+	echo "usage: dev/release vX.Y.Z"
+	exit 1
+}
+v="v${1#v}"
+
+branch="$(git branch --show-current)"
+[[ "$branch" == "master" ]] || {
+	echo "FAIL: release runs from master (on ${branch})"
+	exit 1
+}
+[[ -z "$(git status --porcelain)" ]] || {
+	echo "FAIL: repository has uncommitted changes"
+	exit 1
+}
+git fetch -q origin master
+[[ "$(git rev-parse HEAD)" == "$(git rev-parse origin/master)" ]] || {
+	echo "FAIL: HEAD is not origin/master — push or pull first"
+	exit 1
+}
+git rev-parse "$v" >/dev/null 2>&1 && {
+	echo "FAIL: tag ${v} already exists"
+	exit 1
+}
+
+dev/verify
+
+rm -rf dist && mkdir -p dist
+for target in $TARGETS; do
+	goos="${target%/*}" goarch="${target#*/}" ext=""
+	[[ "$goos" == "windows" ]] && ext=".exe"
+	echo "building ${goos}/${goarch}"
+	GOOS="$goos" GOARCH="$goarch" CGO_ENABLED=0 \
+		go build -ldflags "-X main.version=${v}" -o "dist/shrugged-${goos}-${goarch}${ext}" ./cmd/shrugged
+done
+(cd dist && shasum -a 256 shrugged-* >checksums.txt)
+
+git tag "$v"
+git push -q origin "$v"
+gh release create "$v" dist/* --title "$v" --generate-notes
+
+echo "released ${v}"
