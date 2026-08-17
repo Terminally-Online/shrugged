@@ -104,7 +104,7 @@ if ((${#failed[@]})); then
 fi
 
 if $signoff; then
-	gh signoff "${JOBS[@]}" || exit 1
+	crew signoff "${JOBS[@]}" || exit 1
 fi
 
 echo verified
