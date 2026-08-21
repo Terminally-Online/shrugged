@@ -21,7 +21,7 @@ curl -fsSL https://raw.githubusercontent.com/terminally-online/shrugged/main/ins
 Or with Go:
 
 ```bash
-go install github.com/terminally-online/shrugged/cmd/shrugged@latest
+go install git.ca.plug.to/terminally-online/shrugged/cmd/shrugged@latest
 ```
 
 **Requirements:** Docker, PostgreSQL 14+

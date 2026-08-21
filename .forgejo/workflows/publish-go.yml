@@ -1,0 +1,42 @@
+name: publish-go
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+concurrency:
+  group: publish-go
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: docker
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Publish the module at this commit
+        run: |
+          set -euo pipefail
+          apt-get update
+          apt-get install -y --no-install-recommends zip
+          module=$(go mod edit -json | python3 -c 'import json,sys; print(json.load(sys.stdin)["Module"]["Path"])')
+          version="v0.0.0-$(git -c log.showsignature=false show -s --date=format-local:%Y%m%d%H%M%S --format=%cd HEAD)-$(git rev-parse --short=12 HEAD)"
+          staging="$RUNNER_TEMP/mod/$module@$version"
+          mkdir -p "$staging"
+          git archive --format=tar HEAD | tar -x -C "$staging"
+          rm -rf "$staging/.forgejo"
+          (cd "$RUNNER_TEMP/mod" && zip -qr "$RUNNER_TEMP/module.zip" .)
+          code=$(curl -s -o "$RUNNER_TEMP/out.txt" -w "%{http_code}" -X PUT \
+            -H "Authorization: token $FORGE_PUBLISH_TOKEN" \
+            --upload-file "$RUNNER_TEMP/module.zip" \
+            "https://git.ca.plug.to/api/packages/terminally-online/go/upload")
+          cat "$RUNNER_TEMP/out.txt"
+          case "$code" in
+            201) echo "published $module@$version" ;;
+            409) echo "$module@$version already published" ;;
+            *)   echo "FAIL: registry returned $code"; exit 1 ;;
+          esac
+        env:
+          FORGE_PUBLISH_TOKEN: ${{ secrets.FORGE_PUBLISH_TOKEN }}
