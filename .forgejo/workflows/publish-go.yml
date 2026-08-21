@@ -27,6 +27,7 @@ jobs:
           mkdir -p "$staging"
           git archive --format=tar HEAD | tar -x -C "$staging"
           rm -rf "$staging/.forgejo"
+          find "$staging" -mindepth 2 -name go.mod -exec dirname {} \; | sort -u | while read -r nested; do rm -rf "$nested"; done
           rm -f "$RUNNER_TEMP/module.zip"
           (cd "$RUNNER_TEMP/mod" && zip -qr "$RUNNER_TEMP/module.zip" .)
           code=$(curl -s -o "$RUNNER_TEMP/out.txt" -w "%{http_code}" -X PUT \
