@@ -2,6 +2,8 @@ package docker
 
 import (
 	"context"
+	"net/url"
+	"os"
 	"testing"
 	"time"
 )
@@ -57,14 +59,36 @@ func TestStartPostgres_Integration(t *testing.T) {
 		_ = StopContainer(context.Background(), container.ID)
 	}()
 
-	if container.ID == "" {
-		t.Error("container.ID is empty")
-	}
 	if container.Port == "" {
 		t.Error("container.Port is empty")
 	}
-	if container.Host != "localhost" {
-		t.Errorf("container.Host = %q, want %q", container.Host, "localhost")
+
+	// StartPostgres has two modes and the environment picks which: with no
+	// DATABASE_URL it starts a container and reaches it on localhost, and with
+	// one it adopts the database already there, wherever the URL points. This
+	// asserted the first shape unconditionally, so it failed on merit anywhere
+	// the second one is the right answer — which is every runner that hands a
+	// database to the job rather than a docker socket.
+	dbURL := os.Getenv("DATABASE_URL")
+	if dbURL == "" {
+		if container.ID == "" {
+			t.Error("container.ID is empty")
+		}
+		if container.Host != "localhost" {
+			t.Errorf("container.Host = %q, want %q", container.Host, "localhost")
+		}
+		return
+	}
+
+	if container.ID != "" {
+		t.Errorf("container.ID = %q, want empty: no container is started when DATABASE_URL is set", container.ID)
+	}
+	parsed, err := url.Parse(dbURL)
+	if err != nil {
+		t.Fatalf("DATABASE_URL is not a URL: %v", err)
+	}
+	if container.Host != parsed.Hostname() {
+		t.Errorf("container.Host = %q, want %q from DATABASE_URL", container.Host, parsed.Hostname())
 	}
 }
 

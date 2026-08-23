@@ -46,38 +46,24 @@ jobs:
 
   test:
     runs-on: golang
-    # dev/verify starts postgres with `docker run` and connects to it on
-    # localhost, and shrugged's own tests do the same to exercise the code that
-    # starts it — one of them asserts the host is literally "localhost". A job
-    # container with a service alongside it fails that on principle, so this
-    # job gets the daemon and the host's network namespace and does exactly
-    # what the laptop does.
-    container:
-      image: git.ca.plug.to/terminally-online/ci-go:1.25
-      options: --network host -v /var/run/docker.sock:/var/run/docker.sock
+    # shrugged adopts the database DATABASE_URL names instead of starting one
+    # of its own — that branch already exists in StartPostgres and is what a
+    # runner should use. A service beside the job is the plain way to give it
+    # one; no docker socket needed.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: shrugged
+          POSTGRES_PASSWORD: shrugged
+          POSTGRES_DB: shrugged
     env:
       CGO_ENABLED: "0"
-    # An explicit container drops the default shell to sh, where
-    # `set -o pipefail` is not a thing. Say bash and mean it.
-    defaults:
-      run:
-        shell: bash
+      DATABASE_URL: postgres://shrugged:shrugged@postgres:5432/shrugged?sslmode=disable
     steps:
       - uses: actions/checkout@v4
       - name: go test
-        run: |
-          set -euo pipefail
-          cid="$(docker run -d --rm \
-            -e POSTGRES_USER=shrugged -e POSTGRES_PASSWORD=shrugged -e POSTGRES_DB=shrugged \
-            -p 127.0.0.1::5432 postgres:16)"
-          trap 'docker stop "$cid" >/dev/null 2>&1 || true' EXIT
-          port="$(docker port "$cid" 5432/tcp | head -1 | awk -F: '{print $NF}')"
-          for _ in $(seq 1 30); do
-            docker exec "$cid" pg_isready -U shrugged >/dev/null 2>&1 && break
-            sleep 1
-          done
-          export DATABASE_URL="postgres://shrugged:shrugged@localhost:${port}/shrugged?sslmode=disable"
-          go test -p 1 ./...
+        run: go test -p 1 ./...
       - name: Report signoff/test
         if: always()
         run: |
