@@ -1,0 +1,91 @@
+# Produces the commit statuses branch protection requires. Each job runs the
+# same command dev/verify runs for it and posts the context `dev/verify
+# --signoff` has been posting by hand, so neither the protection rules nor the
+# local script change. dev/verify stays the way to run this on a laptop; it
+# just stops being the only thing that can post a status.
+#
+# runs-on: golang is the runner's Go image. It carries node because Forgejo
+# runs checkout and friends as JavaScript actions, so a job container without
+# node cannot check the repository out at all.
+name: verify
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+env:
+  CGO_ENABLED: "0"
+  GOLANGCI_LINT_VERSION: v2.11.4
+
+jobs:
+  lint:
+    runs-on: golang
+    steps:
+      # Full history: lint runs --new-from-rev against the merge base, which
+      # needs both sides present.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: golangci-lint
+        run: |
+          set -euo pipefail
+          curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh | sh -s -- -b "$(go env GOPATH)/bin" "$GOLANGCI_LINT_VERSION"
+          base="$(git merge-base origin/master HEAD 2>/dev/null || git rev-parse HEAD~1)"
+          "$(go env GOPATH)/bin/golangci-lint" run --allow-parallel-runners --timeout=5m --new-from-rev="$base"
+      - name: Report signoff/lint
+        if: always()
+        run: |
+          set -euo pipefail
+          sha="${{ github.event.pull_request.head.sha || github.sha }}"
+          state="${{ job.status == 'success' && 'success' || 'failure' }}"
+          curl -sSf -X POST -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" -H "Content-Type: application/json" \
+            -d "{\"state\":\"$state\",\"context\":\"signoff/lint\",\"description\":\"golangci-lint\",\"target_url\":\"${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_number }}\"}" \
+            "${{ github.server_url }}/api/v1/repos/${{ github.repository }}/statuses/$sha" > /dev/null
+          echo "posted signoff/lint=$state on $sha"
+
+  test:
+    runs-on: golang
+    # dev/verify starts postgres with `docker run`, which is right on a laptop
+    # and wrong inside a job container. Same image, same credentials, same
+    # database — reached by service name instead of a published port.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: shrugged
+          POSTGRES_PASSWORD: shrugged
+          POSTGRES_DB: shrugged
+    env:
+      DATABASE_URL: postgres://shrugged:shrugged@postgres:5432/shrugged?sslmode=disable
+    steps:
+      - uses: actions/checkout@v4
+      - name: go test
+        run: go test -p 1 ./...
+      - name: Report signoff/test
+        if: always()
+        run: |
+          set -euo pipefail
+          sha="${{ github.event.pull_request.head.sha || github.sha }}"
+          state="${{ job.status == 'success' && 'success' || 'failure' }}"
+          curl -sSf -X POST -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" -H "Content-Type: application/json" \
+            -d "{\"state\":\"$state\",\"context\":\"signoff/test\",\"description\":\"go test -p 1 ./...\",\"target_url\":\"${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_number }}\"}" \
+            "${{ github.server_url }}/api/v1/repos/${{ github.repository }}/statuses/$sha" > /dev/null
+          echo "posted signoff/test=$state on $sha"
+
+  build:
+    runs-on: golang
+    steps:
+      - uses: actions/checkout@v4
+      - name: go build
+        run: go build ./...
+      - name: Report signoff/build
+        if: always()
+        run: |
+          set -euo pipefail
+          sha="${{ github.event.pull_request.head.sha || github.sha }}"
+          state="${{ job.status == 'success' && 'success' || 'failure' }}"
+          curl -sSf -X POST -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" -H "Content-Type: application/json" \
+            -d "{\"state\":\"$state\",\"context\":\"signoff/build\",\"description\":\"go build ./...\",\"target_url\":\"${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_number }}\"}" \
+            "${{ github.server_url }}/api/v1/repos/${{ github.repository }}/statuses/$sha" > /dev/null
+          echo "posted signoff/build=$state on $sha"
