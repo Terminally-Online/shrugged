@@ -119,6 +119,10 @@ type PostgresConfig struct {
 	User     string
 	Password string
 	Database string
+
+	// URL adopts a database that already exists instead of starting a
+	// container. Empty falls back to DATABASE_URL, and then to starting one.
+	URL string
 }
 
 func DefaultPostgresConfig() PostgresConfig {
@@ -131,6 +135,12 @@ func DefaultPostgresConfig() PostgresConfig {
 }
 
 func StartPostgres(ctx context.Context, cfg PostgresConfig) (*Container, error) {
+	// An explicitly named database wins over the environment, and both win
+	// over starting a container: a caller who says which database to use has
+	// been more specific than the shell it inherited.
+	if cfg.URL != "" {
+		return startCIPostgres(ctx, cfg.URL)
+	}
 	if dbURL := os.Getenv("DATABASE_URL"); dbURL != "" {
 		return startCIPostgres(ctx, dbURL)
 	}

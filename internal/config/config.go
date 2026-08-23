@@ -64,6 +64,17 @@ func (c *Config) GetDatabaseURL(flags *Flags) (string, error) {
 	return "", fmt.Errorf("database_url is required (set in config or pass --url flag)")
 }
 
+// OptionalDatabaseURL is GetDatabaseURL for the commands that will start a
+// database of their own when none is named. Absence is an answer here, not an
+// error.
+func (c *Config) OptionalDatabaseURL(flags *Flags) string {
+	url, err := c.GetDatabaseURL(flags)
+	if err != nil {
+		return ""
+	}
+	return url
+}
+
 func (c *Config) GetSchema(flags *Flags) string {
 	if flags != nil && flags.Schema != "" {
 		return flags.Schema

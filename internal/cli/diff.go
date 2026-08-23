@@ -21,8 +21,10 @@ var diffCmd = &cobra.Command{
 	Short: "Show differences between schema file and migrations",
 	Long: `Compare the declarative schema file against the result of applying all migrations.
 
-This spins up a temporary Postgres container, applies all migrations to get the
-"current" state, then compares against the desired schema file.`,
+Applies all migrations to get the "current" state, then compares against the
+desired schema file. The migrations are applied to the database named by --url
+or DATABASE_URL; with neither, a temporary Postgres container is started for
+the purpose.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx := cmd.Context()
 
@@ -35,6 +37,7 @@ This spins up a temporary Postgres container, applies all migrations to get the
 			User:     "shrugged",
 			Password: "shrugged",
 			Database: "shrugged",
+			URL:      cfg.OptionalDatabaseURL(&flags),
 		}
 
 		s := ui.NewSpinner()

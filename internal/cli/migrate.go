@@ -36,6 +36,7 @@ then diffs against the desired schema to produce a new migration.`,
 			User:     "shrugged",
 			Password: "shrugged",
 			Database: "shrugged",
+			URL:      cfg.OptionalDatabaseURL(&flags),
 		}
 
 		s := ui.NewSpinner()

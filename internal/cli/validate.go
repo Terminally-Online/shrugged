@@ -35,6 +35,7 @@ the configured Postgres version.`,
 			User:     "shrugged",
 			Password: "shrugged",
 			Database: "shrugged",
+			URL:      cfg.OptionalDatabaseURL(&flags),
 		}
 
 		s := ui.NewSpinner()

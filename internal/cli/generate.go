@@ -68,6 +68,7 @@ Example:
 				User:     "shrugged",
 				Password: "shrugged",
 				Database: "shrugged",
+				URL:      cfg.OptionalDatabaseURL(&flags),
 			}
 
 			s.Start("Starting Postgres container...")
