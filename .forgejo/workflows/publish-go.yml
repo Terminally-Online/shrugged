@@ -1,0 +1,84 @@
+name: publish-go
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+concurrency:
+  group: publish-go
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: docker
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Publish the module at this commit
+        run: |
+          set -euo pipefail
+          apt-get update
+          apt-get install -y --no-install-recommends zip
+          module=$(go mod edit -json | python3 -c 'import json,sys; print(json.load(sys.stdin)["Module"]["Path"])')
+          version="v0.0.0-$(git -c log.showsignature=false show -s --date=format-local:%Y%m%d%H%M%S --format=%cd HEAD)-$(git rev-parse --short=12 HEAD)"
+          printf 'MODULE=%s\n' "$module" >> "$GITHUB_ENV"
+          printf 'VERSION=%s\n' "$version" >> "$GITHUB_ENV"
+          staging="$RUNNER_TEMP/mod/$module@$version"
+          mkdir -p "$staging"
+          git archive --format=tar HEAD | tar -x -C "$staging"
+          rm -rf "$staging/.forgejo"
+          find "$staging" -mindepth 2 -name go.mod -exec dirname {} \; | sort -u | while read -r nested; do rm -rf "$nested"; done
+          rm -f "$RUNNER_TEMP/module.zip"
+          (cd "$RUNNER_TEMP/mod" && zip -qr "$RUNNER_TEMP/module.zip" .)
+          code=$(curl -s -o "$RUNNER_TEMP/out.txt" -w "%{http_code}" -X PUT \
+            -H "Authorization: token $FORGE_PUBLISH_TOKEN" \
+            --upload-file "$RUNNER_TEMP/module.zip" \
+            "https://git.ca.plug.to/api/packages/terminally-online/go/upload")
+          cat "$RUNNER_TEMP/out.txt"
+          case "$code" in
+            201) echo "published $module@$version" ;;
+            409) echo "$module@$version already published" ;;
+            *)   echo "FAIL: registry returned $code"; exit 1 ;;
+          esac
+        env:
+          FORGE_PUBLISH_TOKEN: ${{ secrets.FORGE_PUBLISH_TOKEN }}
+      - name: Point gusher at what was just published
+        run: |
+          set -euo pipefail
+          curl -fsSL "https://go.dev/dl/go1.25.7.linux-amd64.tar.gz" -o /tmp/go.tgz
+          tar -C /usr/local -xzf /tmp/go.tgz
+          export PATH="/usr/local/go/bin:$PATH"
+          export GOPROXY="https://git.ca.plug.to/api/packages/terminally-online/go,https://proxy.golang.org,direct"
+          export GONOSUMDB="git.ca.plug.to/*"
+          git config --global user.name "forge"
+          git config --global user.email "forge@plug.to"
+          git clone --quiet "https://coolify:${FORGE_PUBLISH_TOKEN}@git.ca.plug.to/terminally-online/gusher.git" /tmp/gusher
+          cd /tmp/gusher
+          go get "$MODULE@$VERSION"
+          if git diff --quiet -- go.mod go.sum; then
+            echo "gusher already names $MODULE@$VERSION"
+            exit 0
+          fi
+          name=$(basename "$MODULE")
+          branch="forge/bump-$name"
+          git checkout -q -b "$branch"
+          git commit -q -am "chore(deps): $name moves forward"
+          git push --quiet origin --delete "$branch" 2>/dev/null || true
+          git push --quiet origin "HEAD:$branch"
+          open=$(curl -sf -H "Authorization: token $FORGE_PUBLISH_TOKEN" \
+            "https://git.ca.plug.to/api/v1/repos/terminally-online/gusher/pulls?state=open&limit=50" \
+            | python3 -c "import json,sys; print(any(p['head']['ref']=='$branch' for p in json.load(sys.stdin)))")
+          if [ "$open" = "True" ]; then
+            echo "bump PR already open on $branch"
+            exit 0
+          fi
+          curl -sf -X POST -H "Authorization: token $FORGE_PUBLISH_TOKEN" -H "Content-Type: application/json" \
+            -d "{\"head\":\"$branch\",\"base\":\"master\",\"title\":\"chore(deps): $name moves forward\"}" \
+            "https://git.ca.plug.to/api/v1/repos/terminally-online/gusher/pulls" > /dev/null
+          echo "opened bump PR on $branch"
+        env:
+          FORGE_PUBLISH_TOKEN: ${{ secrets.FORGE_PUBLISH_TOKEN }}
+          MODULE: ${{ env.MODULE }}
+          VERSION: ${{ env.VERSION }}

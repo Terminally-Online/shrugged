@@ -6,10 +6,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/terminally-online/shrugged/internal/docker"
-	"github.com/terminally-online/shrugged/internal/introspect"
-	"github.com/terminally-online/shrugged/internal/parser"
-	"github.com/terminally-online/shrugged/internal/ui"
+	"git.ca.plug.to/terminally-online/shrugged/internal/docker"
+	"git.ca.plug.to/terminally-online/shrugged/internal/introspect"
+	"git.ca.plug.to/terminally-online/shrugged/internal/parser"
+	"git.ca.plug.to/terminally-online/shrugged/internal/ui"
 )
 
 var validateCmd = &cobra.Command{
@@ -35,6 +35,7 @@ the configured Postgres version.`,
 			User:     "shrugged",
 			Password: "shrugged",
 			Database: "shrugged",
+			URL:      cfg.OptionalDatabaseURL(&flags),
 		}
 
 		s := ui.NewSpinner()

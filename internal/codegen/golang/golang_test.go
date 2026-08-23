@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/terminally-online/shrugged/internal/parser"
+	"git.ca.plug.to/terminally-online/shrugged/internal/parser"
 )
 
 func TestPgTypeToGo(t *testing.T) {

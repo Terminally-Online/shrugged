@@ -7,7 +7,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"github.com/terminally-online/shrugged/internal/parser"
+	"git.ca.plug.to/terminally-online/shrugged/internal/parser"
 )
 
 func Database(ctx context.Context, databaseURL string) (*parser.Schema, error) {

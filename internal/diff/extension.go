@@ -3,7 +3,7 @@ package diff
 import (
 	"fmt"
 
-	"github.com/terminally-online/shrugged/internal/parser"
+	"git.ca.plug.to/terminally-online/shrugged/internal/parser"
 )
 
 type ExtensionChange struct {

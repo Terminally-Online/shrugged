@@ -6,8 +6,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/terminally-online/shrugged/internal/introspect"
-	"github.com/terminally-online/shrugged/internal/ui"
+	"git.ca.plug.to/terminally-online/shrugged/internal/introspect"
+	"git.ca.plug.to/terminally-online/shrugged/internal/ui"
 )
 
 var (
