@@ -3,6 +3,10 @@ name: publish-go
 on:
   push:
     branches: [master]
+    # A tag is how a real version gets into the registry. Without this the
+    # workflow only ever published pseudo-versions, so nothing could pin
+    # v0.0.28 no matter how many times it was tagged.
+    tags: ["v*"]
   workflow_dispatch:
 
 concurrency:
@@ -11,7 +15,10 @@ concurrency:
 
 jobs:
   publish:
-    runs-on: docker
+    # The Go image. This ran on the node image and its very first command is
+    # `go mod edit`, so it failed before it published anything — which is why
+    # the registry has never had a module in it.
+    runs-on: golang
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
@@ -19,10 +26,13 @@ jobs:
       - name: Publish the module at this commit
         run: |
           set -euo pipefail
-          apt-get update
-          apt-get install -y --no-install-recommends zip
-          module=$(go mod edit -json | python3 -c 'import json,sys; print(json.load(sys.stdin)["Module"]["Path"])')
-          version="v0.0.0-$(git -c log.showsignature=false show -s --date=format-local:%Y%m%d%H%M%S --format=%cd HEAD)-$(git rev-parse --short=12 HEAD)"
+          module=$(go mod edit -json | jq -r .Module.Path)
+          # A tag publishes itself; anything else publishes the pseudo-version
+          # that names the commit it came from.
+          case "$GITHUB_REF" in
+            refs/tags/*) version="${GITHUB_REF#refs/tags/}" ;;
+            *) version="v0.0.0-$(git -c log.showsignature=false show -s --date=format-local:%Y%m%d%H%M%S --format=%cd HEAD)-$(git rev-parse --short=12 HEAD)" ;;
+          esac
           printf 'MODULE=%s\n' "$module" >> "$GITHUB_ENV"
           printf 'VERSION=%s\n' "$version" >> "$GITHUB_ENV"
           staging="$RUNNER_TEMP/mod/$module@$version"
@@ -47,9 +57,6 @@ jobs:
       - name: Point gusher at what was just published
         run: |
           set -euo pipefail
-          curl -fsSL "https://go.dev/dl/go1.25.7.linux-amd64.tar.gz" -o /tmp/go.tgz
-          tar -C /usr/local -xzf /tmp/go.tgz
-          export PATH="/usr/local/go/bin:$PATH"
           export GOPROXY="https://git.ca.plug.to/api/packages/terminally-online/go,https://proxy.golang.org,direct"
           export GONOSUMDB="git.ca.plug.to/*"
           git config --global user.name "forge"
