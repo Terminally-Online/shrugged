@@ -57,6 +57,11 @@ jobs:
       options: --network host -v /var/run/docker.sock:/var/run/docker.sock
     env:
       CGO_ENABLED: "0"
+    # An explicit container drops the default shell to sh, where
+    # `set -o pipefail` is not a thing. Say bash and mean it.
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v4
       - name: go test
