@@ -80,8 +80,8 @@ func TestStartPostgres_Integration(t *testing.T) {
 		return
 	}
 
-	if container.ID != "" {
-		t.Errorf("container.ID = %q, want empty: no container is started when DATABASE_URL is set", container.ID)
+	if container.ID != ciContainerID {
+		t.Errorf("container.ID = %q, want %q: nothing is started when DATABASE_URL is set", container.ID, ciContainerID)
 	}
 	parsed, err := url.Parse(dbURL)
 	if err != nil {

@@ -180,6 +180,10 @@ func StartPostgres(ctx context.Context, cfg PostgresConfig) (*Container, error) 
 	return container, nil
 }
 
+// ciContainerID marks a Container that adopts an existing database rather than
+// one this package started, so StopContainer knows there is nothing to stop.
+const ciContainerID = "ci-postgres"
+
 func startCIPostgres(ctx context.Context, dbURL string) (*Container, error) {
 	parsed, err := url.Parse(dbURL)
 	if err != nil {
@@ -193,7 +197,7 @@ func startCIPostgres(ctx context.Context, dbURL string) (*Container, error) {
 	}
 
 	container := &Container{
-		ID:       "ci-postgres",
+		ID:       ciContainerID,
 		Host:     parsed.Hostname(),
 		Port:     port,
 		User:     parsed.User.Username(),
@@ -221,7 +225,7 @@ func startCIPostgres(ctx context.Context, dbURL string) (*Container, error) {
 }
 
 func StopContainer(ctx context.Context, containerID string) error {
-	if containerID == "ci-postgres" {
+	if containerID == ciContainerID {
 		return nil
 	}
 	cmd := exec.CommandContext(ctx, "docker", "stop", containerID)
