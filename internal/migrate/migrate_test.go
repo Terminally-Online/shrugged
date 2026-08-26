@@ -597,3 +597,60 @@ func TestApply_NoTransactionRunsConcurrentIndexBuild_Integration(t *testing.T) {
 		t.Fatalf("rollback must remove the record; applied = %d", len(applied))
 	}
 }
+
+func TestStatements(t *testing.T) {
+	sql := NoTransactionDirective + `
+DROP INDEX CONCURRENTLY IF EXISTS i; -- trailing; comment
+CREATE INDEX CONCURRENTLY i ON t (a) WHERE (name = 'a;b'::text);
+/* block; comment */
+DO $body$ BEGIN PERFORM 1; END $body$;
+INSERT INTO t VALUES ("weird;col", 'it''s; fine')`
+	got := Statements(sql)
+	want := []string{
+		NoTransactionDirective + "\nDROP INDEX CONCURRENTLY IF EXISTS i",
+		"-- trailing; comment\nCREATE INDEX CONCURRENTLY i ON t (a) WHERE (name = 'a;b'::text)",
+		"/* block; comment */\nDO $body$ BEGIN PERFORM 1; END $body$",
+		`INSERT INTO t VALUES ("weird;col", 'it''s; fine')`,
+	}
+	if len(got) != len(want) {
+		t.Fatalf("Statements() = %q, want %q", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("statement %d = %q, want %q", i, got[i], want[i])
+		}
+	}
+	if n := len(Statements("-- only a comment\n")); n != 0 {
+		t.Errorf("comment-only content yields %d statements", n)
+	}
+}
+
+func TestApply_NoTransactionRunsEachStatementAlone_Integration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+	cfg := docker.DefaultPostgresConfig()
+	container, err := docker.StartPostgres(ctx, cfg)
+	if err != nil {
+		t.Fatalf("StartPostgres() error = %v", err)
+	}
+	defer func() { _ = docker.StopContainer(context.Background(), container.ID) }()
+	dbURL := container.ConnectionString()
+
+	if err := Apply(ctx, dbURL, Migration{Name: "001_table.sql", Content: "CREATE TABLE rows (id SERIAL PRIMARY KEY, v INT);"}); err != nil {
+		t.Fatalf("Apply(table) error = %v", err)
+	}
+	rebuild := Migration{Name: "002_index.sql", Content: NoTransactionDirective + "\nDROP INDEX CONCURRENTLY IF EXISTS rows_v;\nCREATE INDEX CONCURRENTLY rows_v ON rows (v);\n"}
+	if err := Apply(ctx, dbURL, rebuild); err != nil {
+		t.Fatalf("Apply(two concurrent statements) error = %v", err)
+	}
+	applied, err := GetApplied(ctx, dbURL)
+	if err != nil {
+		t.Fatalf("GetApplied() error = %v", err)
+	}
+	if len(applied) != 2 {
+		t.Fatalf("applied = %d, want 2", len(applied))
+	}
+}

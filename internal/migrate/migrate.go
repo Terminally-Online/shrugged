@@ -25,7 +25,7 @@ type Migration struct {
 const migrationsTable = "shrugged_migrations"
 
 // NoTransactionDirective, on its own comment line anywhere in a migration,
-// runs that migration outside a transaction. Postgres refuses CREATE INDEX
+// runs that migration outside a transaction, one statement at a time. Postgres refuses CREATE INDEX
 // CONCURRENTLY and a handful of other statements inside one, and those are
 // exactly the statements a live table with tens of millions of rows needs:
 // a plain index build holds a lock that stalls every writer for the
@@ -218,8 +218,10 @@ func Apply(ctx context.Context, databaseURL string, m Migration) error {
 	record := fmt.Sprintf(`INSERT INTO %s (name, checksum) VALUES ($1, $2)`, migrationsTable)
 
 	if m.NoTransaction() {
-		if _, err := conn.Exec(ctx, m.Content); err != nil {
-			return fmt.Errorf("failed to execute migration: %w", err)
+		for _, statement := range Statements(m.Content) {
+			if _, err := conn.Exec(ctx, statement); err != nil {
+				return fmt.Errorf("failed to execute migration: %w", err)
+			}
 		}
 		if _, err := conn.Exec(ctx, record, m.Name, checksum); err != nil {
 			return fmt.Errorf("failed to record migration: %w", err)
@@ -302,8 +304,10 @@ func Rollback(ctx context.Context, databaseURL string, m Migration) error {
 	remove := fmt.Sprintf(`DELETE FROM %s WHERE name = $1`, migrationsTable)
 
 	if m.NoTransaction() {
-		if _, err := conn.Exec(ctx, m.Content); err != nil {
-			return fmt.Errorf("failed to execute rollback: %w", err)
+		for _, statement := range Statements(m.Content) {
+			if _, err := conn.Exec(ctx, statement); err != nil {
+				return fmt.Errorf("failed to execute rollback: %w", err)
+			}
 		}
 		if _, err := conn.Exec(ctx, remove, m.Name); err != nil {
 			return fmt.Errorf("failed to remove migration record: %w", err)

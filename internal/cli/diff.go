@@ -12,6 +12,7 @@ import (
 	"git.ca.plug.to/terminally-online/shrugged/internal/diff"
 	"git.ca.plug.to/terminally-online/shrugged/internal/docker"
 	"git.ca.plug.to/terminally-online/shrugged/internal/introspect"
+	"git.ca.plug.to/terminally-online/shrugged/internal/migrate"
 	"git.ca.plug.to/terminally-online/shrugged/internal/parser"
 	"git.ca.plug.to/terminally-online/shrugged/internal/ui"
 )
@@ -128,7 +129,7 @@ func buildCurrentState(ctx context.Context, s *ui.Spinner, container *docker.Con
 			return nil, fmt.Errorf("failed to read migration %s: %w", entry.Name(), err)
 		}
 
-		if err := docker.ExecuteSQL(ctx, container, string(content)); err != nil {
+		if err := applyMigrationSQL(ctx, container, string(content)); err != nil {
 			return nil, fmt.Errorf("failed to apply migration %s: %w", entry.Name(), err)
 		}
 	}
@@ -146,4 +147,20 @@ func countSQLFiles(entries []os.DirEntry) int {
 		}
 	}
 	return count
+}
+
+// applyMigrationSQL replays one migration into the ephemeral database the way
+// apply would: a no-transaction migration statement by statement, so its
+// CONCURRENTLY builds are not folded into an implicit transaction block.
+func applyMigrationSQL(ctx context.Context, container *docker.Container, content string) error {
+	m := migrate.Migration{Content: content}
+	if !m.NoTransaction() {
+		return docker.ExecuteSQL(ctx, container, content)
+	}
+	for _, statement := range migrate.Statements(content) {
+		if err := docker.ExecuteSQL(ctx, container, statement); err != nil {
+			return err
+		}
+	}
+	return nil
 }
