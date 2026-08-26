@@ -7,8 +7,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/terminally-online/shrugged/internal/config"
-	"github.com/terminally-online/shrugged/internal/updater"
+	"git.ca.plug.to/terminally-online/shrugged/internal/config"
+	"git.ca.plug.to/terminally-online/shrugged/internal/updater"
 )
 
 var (

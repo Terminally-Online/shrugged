@@ -1,4 +1,4 @@
-module github.com/terminally-online/shrugged
+module git.ca.plug.to/terminally-online/shrugged
 
 go 1.23.0
 

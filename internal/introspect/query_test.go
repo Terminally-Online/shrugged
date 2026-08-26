@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/terminally-online/shrugged/internal/docker"
-	"github.com/terminally-online/shrugged/internal/parser"
+	"git.ca.plug.to/terminally-online/shrugged/internal/docker"
+	"git.ca.plug.to/terminally-online/shrugged/internal/parser"
 )
 
 func TestIntrospectQueries_Integration(t *testing.T) {

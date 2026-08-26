@@ -8,10 +8,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/terminally-online/shrugged/internal/diff"
-	"github.com/terminally-online/shrugged/internal/docker"
-	"github.com/terminally-online/shrugged/internal/introspect"
-	"github.com/terminally-online/shrugged/internal/parser"
+	"git.ca.plug.to/terminally-online/shrugged/internal/diff"
+	"git.ca.plug.to/terminally-online/shrugged/internal/docker"
+	"git.ca.plug.to/terminally-online/shrugged/internal/introspect"
+	"git.ca.plug.to/terminally-online/shrugged/internal/parser"
 )
 
 type DiffRequest struct {

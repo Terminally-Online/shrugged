@@ -1,0 +1,62 @@
+# The merge gate. Branch protection requires the check each job here records,
+# so a commit is mergeable exactly when this workflow is green on it. Every job
+# runs the command dev/verify runs for it; dev/verify remains the laptop edit
+# loop, it does not certify.
+#
+# runs-on: golang is the runner's Go image. It carries node because Forgejo
+# runs checkout and friends as JavaScript actions, so a job container without
+# node cannot check the repository out at all.
+name: verify
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+env:
+  CGO_ENABLED: "0"
+  GOLANGCI_LINT_VERSION: v2.11.4
+
+jobs:
+  lint:
+    runs-on: golang
+    steps:
+      # Full history: lint runs --new-from-rev against the merge base, which
+      # needs both sides present.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: golangci-lint
+        run: |
+          set -euo pipefail
+          curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh | sh -s -- -b "$(go env GOPATH)/bin" "$GOLANGCI_LINT_VERSION"
+          base="$(git merge-base origin/master HEAD 2>/dev/null || git rev-parse HEAD~1)"
+          "$(go env GOPATH)/bin/golangci-lint" run --allow-parallel-runners --timeout=5m --new-from-rev="$base"
+
+  test:
+    runs-on: golang
+    # shrugged adopts the database DATABASE_URL names instead of starting one
+    # of its own — that branch already exists in StartPostgres and is what a
+    # runner should use. A service beside the job is the plain way to give it
+    # one; no docker socket needed.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: shrugged
+          POSTGRES_PASSWORD: shrugged
+          POSTGRES_DB: shrugged
+    env:
+      CGO_ENABLED: "0"
+      DATABASE_URL: postgres://shrugged:shrugged@postgres:5432/shrugged?sslmode=disable
+    steps:
+      - uses: actions/checkout@v4
+      - name: go test
+        run: go test -p 1 ./...
+
+  build:
+    runs-on: golang
+    steps:
+      - uses: actions/checkout@v4
+      - name: go build
+        run: go build ./...
