@@ -527,3 +527,73 @@ func TestHasModifiedMigrations_Integration(t *testing.T) {
 		t.Errorf("expected 1 modified migration, got %d", len(modified))
 	}
 }
+
+func TestNoTransactionDirective(t *testing.T) {
+	cases := map[string]bool{
+		"CREATE INDEX CONCURRENTLY i ON t (a);":                                      false,
+		"-- shrugged:no-transaction\nCREATE INDEX CONCURRENTLY i ON t (a);":          true,
+		"-- a comment\n  -- shrugged:no-transaction  \nCREATE INDEX CONCURRENTLY i;": true,
+		"-- shrugged:no-transaction is mentioned in prose\nSELECT 1;":                false,
+	}
+	for content, want := range cases {
+		if got := (Migration{Content: content}).NoTransaction(); got != want {
+			t.Errorf("NoTransaction(%q) = %v, want %v", content, got, want)
+		}
+	}
+}
+
+func TestApply_NoTransactionRunsConcurrentIndexBuild_Integration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+
+	cfg := docker.DefaultPostgresConfig()
+	container, err := docker.StartPostgres(ctx, cfg)
+	if err != nil {
+		t.Fatalf("StartPostgres() error = %v", err)
+	}
+	defer func() { _ = docker.StopContainer(context.Background(), container.ID) }()
+	dbURL := container.ConnectionString()
+
+	if err := Apply(ctx, dbURL, Migration{Name: "001_table.sql", Content: "CREATE TABLE rows (id SERIAL PRIMARY KEY, v INT);"}); err != nil {
+		t.Fatalf("Apply(table) error = %v", err)
+	}
+
+	transactional := Migration{Name: "002_index.sql", Content: "CREATE INDEX CONCURRENTLY rows_v ON rows (v);"}
+	if err := Apply(ctx, dbURL, transactional); err == nil {
+		t.Fatal("a concurrent index build inside a transaction must fail")
+	}
+	applied, err := GetApplied(ctx, dbURL)
+	if err != nil {
+		t.Fatalf("GetApplied() error = %v", err)
+	}
+	if len(applied) != 1 {
+		t.Fatalf("failed migration must not be recorded; applied = %d", len(applied))
+	}
+
+	directed := Migration{Name: "002_index.sql", Content: NoTransactionDirective + "\nCREATE INDEX CONCURRENTLY rows_v ON rows (v);"}
+	if err := Apply(ctx, dbURL, directed); err != nil {
+		t.Fatalf("Apply(no-transaction) error = %v", err)
+	}
+	applied, err = GetApplied(ctx, dbURL)
+	if err != nil {
+		t.Fatalf("GetApplied() error = %v", err)
+	}
+	if len(applied) != 2 || applied[1].Name != directed.Name {
+		t.Fatalf("applied = %+v, want the index migration recorded second", applied)
+	}
+
+	if err := Rollback(ctx, dbURL, Migration{Name: directed.Name, Content: NoTransactionDirective + "\nDROP INDEX CONCURRENTLY rows_v;"}); err != nil {
+		t.Fatalf("Rollback(no-transaction) error = %v", err)
+	}
+	applied, err = GetApplied(ctx, dbURL)
+	if err != nil {
+		t.Fatalf("GetApplied() error = %v", err)
+	}
+	if len(applied) != 1 {
+		t.Fatalf("rollback must remove the record; applied = %d", len(applied))
+	}
+}
