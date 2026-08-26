@@ -41,7 +41,7 @@ jobs:
           rm -rf "$staging/.forgejo"
           find "$staging" -mindepth 2 -name go.mod -exec dirname {} \; | sort -u | while read -r nested; do rm -rf "$nested"; done
           rm -f "$RUNNER_TEMP/module.zip"
-          (cd "$RUNNER_TEMP/mod" && zip -qr "$RUNNER_TEMP/module.zip" .)
+          (cd "$RUNNER_TEMP/mod" && zip -qrD "$RUNNER_TEMP/module.zip" .)
           code=$(curl -s -o "$RUNNER_TEMP/out.txt" -w "%{http_code}" -X PUT \
             -H "Authorization: token $FORGE_PUBLISH_TOKEN" \
             --upload-file "$RUNNER_TEMP/module.zip" \
