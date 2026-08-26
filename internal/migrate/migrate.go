@@ -24,6 +24,26 @@ type Migration struct {
 
 const migrationsTable = "shrugged_migrations"
 
+// NoTransactionDirective, on its own comment line anywhere in a migration,
+// runs that migration outside a transaction. Postgres refuses CREATE INDEX
+// CONCURRENTLY and a handful of other statements inside one, and those are
+// exactly the statements a live table with tens of millions of rows needs:
+// a plain index build holds a lock that stalls every writer for the
+// duration. The migration record is written in its own statement after the
+// content succeeds, so a failure leaves the migration pending, never
+// half-recorded.
+const NoTransactionDirective = "-- shrugged:no-transaction"
+
+// NoTransaction reports whether the migration carries the directive.
+func (m Migration) NoTransaction() bool {
+	for _, line := range strings.Split(m.Content, "\n") {
+		if strings.TrimSpace(line) == NoTransactionDirective {
+			return true
+		}
+	}
+	return false
+}
+
 func ComputeChecksum(content string) string {
 	hash := sha256.Sum256([]byte(content))
 	return hex.EncodeToString(hash[:])
@@ -191,6 +211,22 @@ func Apply(ctx context.Context, databaseURL string, m Migration) error {
 		return fmt.Errorf("failed to ensure migrations table: %w", err)
 	}
 
+	checksum := m.Checksum
+	if checksum == "" {
+		checksum = ComputeChecksum(m.Content)
+	}
+	record := fmt.Sprintf(`INSERT INTO %s (name, checksum) VALUES ($1, $2)`, migrationsTable)
+
+	if m.NoTransaction() {
+		if _, err := conn.Exec(ctx, m.Content); err != nil {
+			return fmt.Errorf("failed to execute migration: %w", err)
+		}
+		if _, err := conn.Exec(ctx, record, m.Name, checksum); err != nil {
+			return fmt.Errorf("failed to record migration: %w", err)
+		}
+		return nil
+	}
+
 	tx, err := conn.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
@@ -201,14 +237,7 @@ func Apply(ctx context.Context, databaseURL string, m Migration) error {
 		return fmt.Errorf("failed to execute migration: %w", err)
 	}
 
-	checksum := m.Checksum
-	if checksum == "" {
-		checksum = ComputeChecksum(m.Content)
-	}
-
-	if _, err := tx.Exec(ctx, fmt.Sprintf(`
-		INSERT INTO %s (name, checksum) VALUES ($1, $2)
-	`, migrationsTable), m.Name, checksum); err != nil {
+	if _, err := tx.Exec(ctx, record, m.Name, checksum); err != nil {
 		return fmt.Errorf("failed to record migration: %w", err)
 	}
 
@@ -270,6 +299,18 @@ func Rollback(ctx context.Context, databaseURL string, m Migration) error {
 	}
 	defer func() { _ = conn.Close(ctx) }()
 
+	remove := fmt.Sprintf(`DELETE FROM %s WHERE name = $1`, migrationsTable)
+
+	if m.NoTransaction() {
+		if _, err := conn.Exec(ctx, m.Content); err != nil {
+			return fmt.Errorf("failed to execute rollback: %w", err)
+		}
+		if _, err := conn.Exec(ctx, remove, m.Name); err != nil {
+			return fmt.Errorf("failed to remove migration record: %w", err)
+		}
+		return nil
+	}
+
 	tx, err := conn.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
@@ -280,9 +321,7 @@ func Rollback(ctx context.Context, databaseURL string, m Migration) error {
 		return fmt.Errorf("failed to execute rollback: %w", err)
 	}
 
-	if _, err := tx.Exec(ctx, fmt.Sprintf(`
-		DELETE FROM %s WHERE name = $1
-	`, migrationsTable), m.Name); err != nil {
+	if _, err := tx.Exec(ctx, remove, m.Name); err != nil {
 		return fmt.Errorf("failed to remove migration record: %w", err)
 	}
 
