@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"git.ca.plug.to/terminally-online/shrugged/internal/docker"
+
+	"github.com/jackc/pgx/v5"
 )
 
 func TestComputeChecksum(t *testing.T) {
@@ -100,7 +102,7 @@ func TestApplyAndGetApplied_Integration(t *testing.T) {
 		Content: "CREATE TABLE users (id SERIAL PRIMARY KEY, name TEXT);",
 	}
 
-	if err := Apply(ctx, dbURL, migration); err != nil {
+	if _, err := Apply(ctx, dbURL, migration); err != nil {
 		t.Fatalf("Apply() error = %v", err)
 	}
 
@@ -176,7 +178,7 @@ func TestGetPending_Integration(t *testing.T) {
 		t.Errorf("second pending = %q, want %q", pending[1].Name, "002_create_posts.sql")
 	}
 
-	if err := Apply(ctx, dbURL, pending[0]); err != nil {
+	if _, err := Apply(ctx, dbURL, pending[0]); err != nil {
 		t.Fatalf("Apply() error = %v", err)
 	}
 
@@ -272,7 +274,7 @@ func TestGetLastApplied_Integration(t *testing.T) {
 	}
 
 	for _, m := range migrations {
-		if err := Apply(ctx, dbURL, m); err != nil {
+		if _, err := Apply(ctx, dbURL, m); err != nil {
 			t.Fatalf("Apply() error = %v", err)
 		}
 	}
@@ -313,7 +315,7 @@ func TestRollback_Integration(t *testing.T) {
 		Content: "CREATE TABLE rollback_test (id SERIAL PRIMARY KEY);",
 	}
 
-	if err := Apply(ctx, dbURL, migration); err != nil {
+	if _, err := Apply(ctx, dbURL, migration); err != nil {
 		t.Fatalf("Apply() error = %v", err)
 	}
 
@@ -388,7 +390,7 @@ func TestGetRollbackable_Integration(t *testing.T) {
 	}
 
 	for _, m := range migrations {
-		if err := Apply(ctx, dbURL, m); err != nil {
+		if _, err := Apply(ctx, dbURL, m); err != nil {
 			t.Fatalf("Apply() error = %v", err)
 		}
 	}
@@ -459,7 +461,7 @@ func TestGetRollbackable_MissingDownMigration(t *testing.T) {
 		Content: "CREATE TABLE test (id INT);",
 	}
 
-	if err := Apply(ctx, dbURL, migration); err != nil {
+	if _, err := Apply(ctx, dbURL, migration); err != nil {
 		t.Fatalf("Apply() error = %v", err)
 	}
 
@@ -502,7 +504,7 @@ func TestHasModifiedMigrations_Integration(t *testing.T) {
 		Content: originalContent,
 	}
 
-	if err := Apply(ctx, dbURL, migration); err != nil {
+	if _, err := Apply(ctx, dbURL, migration); err != nil {
 		t.Fatalf("Apply() error = %v", err)
 	}
 
@@ -558,12 +560,12 @@ func TestApply_NoTransactionRunsConcurrentIndexBuild_Integration(t *testing.T) {
 	defer func() { _ = docker.StopContainer(context.Background(), container.ID) }()
 	dbURL := container.ConnectionString()
 
-	if err := Apply(ctx, dbURL, Migration{Name: "001_table.sql", Content: "CREATE TABLE rows (id SERIAL PRIMARY KEY, v INT);"}); err != nil {
+	if _, err := Apply(ctx, dbURL, Migration{Name: "001_table.sql", Content: "CREATE TABLE rows (id SERIAL PRIMARY KEY, v INT);"}); err != nil {
 		t.Fatalf("Apply(table) error = %v", err)
 	}
 
 	transactional := Migration{Name: "002_index.sql", Content: "CREATE INDEX CONCURRENTLY rows_v ON rows (v);"}
-	if err := Apply(ctx, dbURL, transactional); err == nil {
+	if _, err := Apply(ctx, dbURL, transactional); err == nil {
 		t.Fatal("a concurrent index build inside a transaction must fail")
 	}
 	applied, err := GetApplied(ctx, dbURL)
@@ -575,7 +577,7 @@ func TestApply_NoTransactionRunsConcurrentIndexBuild_Integration(t *testing.T) {
 	}
 
 	directed := Migration{Name: "002_index.sql", Content: NoTransactionDirective + "\nCREATE INDEX CONCURRENTLY rows_v ON rows (v);"}
-	if err := Apply(ctx, dbURL, directed); err != nil {
+	if _, err := Apply(ctx, dbURL, directed); err != nil {
 		t.Fatalf("Apply(no-transaction) error = %v", err)
 	}
 	applied, err = GetApplied(ctx, dbURL)
@@ -639,11 +641,11 @@ func TestApply_NoTransactionRunsEachStatementAlone_Integration(t *testing.T) {
 	defer func() { _ = docker.StopContainer(context.Background(), container.ID) }()
 	dbURL := container.ConnectionString()
 
-	if err := Apply(ctx, dbURL, Migration{Name: "001_table.sql", Content: "CREATE TABLE rows (id SERIAL PRIMARY KEY, v INT);"}); err != nil {
+	if _, err := Apply(ctx, dbURL, Migration{Name: "001_table.sql", Content: "CREATE TABLE rows (id SERIAL PRIMARY KEY, v INT);"}); err != nil {
 		t.Fatalf("Apply(table) error = %v", err)
 	}
 	rebuild := Migration{Name: "002_index.sql", Content: NoTransactionDirective + "\nDROP INDEX CONCURRENTLY IF EXISTS rows_v;\nCREATE INDEX CONCURRENTLY rows_v ON rows (v);\n"}
-	if err := Apply(ctx, dbURL, rebuild); err != nil {
+	if _, err := Apply(ctx, dbURL, rebuild); err != nil {
 		t.Fatalf("Apply(two concurrent statements) error = %v", err)
 	}
 	applied, err := GetApplied(ctx, dbURL)
@@ -652,5 +654,71 @@ func TestApply_NoTransactionRunsEachStatementAlone_Integration(t *testing.T) {
 	}
 	if len(applied) != 2 {
 		t.Fatalf("applied = %d, want 2", len(applied))
+	}
+}
+
+// Two containers of one service apply the same pending migration at the same
+// moment on every deploy. Exactly one of them runs it; the rest wait on the
+// apply lock, find it recorded, and report that they applied nothing — none
+// of them fails on the table the first one created.
+func TestApply_ConcurrentAppliersTakeTurns_Integration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	cfg := docker.DefaultPostgresConfig()
+	container, err := docker.StartPostgres(ctx, cfg)
+	if err != nil {
+		t.Fatalf("StartPostgres() error = %v", err)
+	}
+	defer func() { _ = docker.StopContainer(context.Background(), container.ID) }()
+	dbURL := container.ConnectionString()
+
+	conn, err := pgx.Connect(ctx, dbURL)
+	if err != nil {
+		t.Fatalf("connect: %v", err)
+	}
+	if err := EnsureMigrationsTable(ctx, conn); err != nil {
+		t.Fatalf("EnsureMigrationsTable() error = %v", err)
+	}
+	_ = conn.Close(ctx)
+
+	for _, m := range []Migration{
+		{Name: "001_shared.sql", Content: "CREATE TABLE shared (id SERIAL PRIMARY KEY); SELECT pg_sleep(0.5);"},
+		{Name: "002_shared_no_tx.sql", Content: "-- shrugged:no-transaction\nCREATE TABLE shared_no_tx (id SERIAL PRIMARY KEY);\nSELECT pg_sleep(0.5);"},
+	} {
+		const appliers = 4
+		results := make(chan bool, appliers)
+		errs := make(chan error, appliers)
+		for range appliers {
+			go func() {
+				applied, err := Apply(ctx, dbURL, m)
+				results <- applied
+				errs <- err
+			}()
+		}
+		ran := 0
+		for range appliers {
+			if err := <-errs; err != nil {
+				t.Fatalf("%s: a concurrent applier failed: %v", m.Name, err)
+			}
+			if <-results {
+				ran++
+			}
+		}
+		if ran != 1 {
+			t.Fatalf("%s: %d appliers ran the migration, want exactly one", m.Name, ran)
+		}
+	}
+
+	applied, err := GetApplied(ctx, dbURL)
+	if err != nil {
+		t.Fatalf("GetApplied() error = %v", err)
+	}
+	if len(applied) != 2 {
+		t.Fatalf("recorded %d migrations, want 2", len(applied))
 	}
 }
