@@ -315,6 +315,50 @@ func TestDropTableFiltersTableGrants(t *testing.T) {
 	}
 }
 
+func TestDropFunctionFiltersFunctionGrants(t *testing.T) {
+	current := &parser.Schema{
+		Functions: []parser.Function{
+			{Name: "classify", Schema: "public", Args: "bigint", Returns: "boolean", Language: "sql", Body: "SELECT true"},
+			{Name: "keep", Schema: "public", Args: "bigint", Returns: "boolean", Language: "sql", Body: "SELECT true"},
+		},
+		RoleGrants: []parser.RoleGrant{
+			{Privilege: "EXECUTE", ObjectType: "FUNCTION", Schema: "public", ObjectName: "classify", Grantee: "PUBLIC"},
+			{Privilege: "EXECUTE", ObjectType: "FUNCTION", Schema: "public", ObjectName: "keep", Grantee: "PUBLIC"},
+		},
+	}
+	desired := &parser.Schema{
+		Functions: []parser.Function{
+			{Name: "keep", Schema: "public", Args: "bigint", Returns: "boolean", Language: "sql", Body: "SELECT true"},
+		},
+	}
+
+	changes := Compare(current, desired)
+
+	for _, c := range changes {
+		if c.Type() != DropRoleGrant {
+			continue
+		}
+		gc := c.(*RoleGrantChange)
+		switch gc.RoleGrant.ObjectName {
+		case "classify":
+			t.Errorf("REVOKE on FUNCTION classify must be filtered — the function is being dropped")
+		case "keep":
+			if gc.RoleGrant.ObjectType != "FUNCTION" {
+				t.Errorf("REVOKE on the surviving function must keep its object type, got %q", gc.RoleGrant.ObjectType)
+			}
+		}
+	}
+	found := false
+	for _, c := range changes {
+		if gc, ok := c.(*RoleGrantChange); ok && c.Type() == DropRoleGrant && gc.RoleGrant.ObjectName == "keep" {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("REVOKE on FUNCTION keep must be preserved — the function survives")
+	}
+}
+
 func TestDropTableOwnedObjectsUseIfExists(t *testing.T) {
 	current := &parser.Schema{
 		Tables: []parser.Table{
