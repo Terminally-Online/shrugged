@@ -124,21 +124,27 @@ func Compare(current, desired *parser.Schema) []Change {
 	changes = append(changes, compareDefaultPrivileges(current.DefaultPrivileges, desired.DefaultPrivileges)...)
 	changes = append(changes, compareComments(current.Comments, desired.Comments)...)
 
-	return filterDroppedTableGrants(changes)
+	return filterDroppedObjectGrants(changes)
 }
 
-// filterDroppedTableGrants removes REVOKE statements for grants on tables that
-// are being dropped in the same migration. PostgreSQL has no IF EXISTS for
-// REVOKE, and the grant vanishes automatically when the table is dropped.
-func filterDroppedTableGrants(changes []Change) []Change {
+// filterDroppedObjectGrants removes REVOKE statements for grants on tables
+// and functions that are being dropped in the same migration. PostgreSQL has
+// no IF EXISTS for REVOKE, and the grant vanishes with its object — a REVOKE
+// ordered after the DROP fails the whole migration.
+func filterDroppedObjectGrants(changes []Change) []Change {
 	droppedTables := make(map[string]bool)
+	droppedFunctions := make(map[string]bool)
 	for _, c := range changes {
-		if c.Type() == DropTable {
+		switch c.Type() {
+		case DropTable:
 			tc := c.(*TableChange)
 			droppedTables[objectKey(tc.Table.Schema, tc.Table.Name)] = true
+		case DropFunction:
+			fc := c.(*FunctionChange)
+			droppedFunctions[objectKey(fc.Function.Schema, fc.Function.Name)] = true
 		}
 	}
-	if len(droppedTables) == 0 {
+	if len(droppedTables) == 0 && len(droppedFunctions) == 0 {
 		return changes
 	}
 
@@ -146,8 +152,14 @@ func filterDroppedTableGrants(changes []Change) []Change {
 	for _, c := range changes {
 		if c.Type() == DropRoleGrant {
 			gc := c.(*RoleGrantChange)
-			if gc.RoleGrant.ObjectType == "TABLE" || gc.RoleGrant.ObjectType == "" {
-				if droppedTables[objectKey(gc.RoleGrant.Schema, gc.RoleGrant.ObjectName)] {
+			key := objectKey(gc.RoleGrant.Schema, gc.RoleGrant.ObjectName)
+			switch gc.RoleGrant.ObjectType {
+			case "TABLE", "":
+				if droppedTables[key] {
+					continue
+				}
+			case "FUNCTION":
+				if droppedFunctions[key] {
 					continue
 				}
 			}
