@@ -200,15 +200,32 @@ func HasModifiedMigrations(ctx context.Context, databaseURL, migrationsDir strin
 	return modified, nil
 }
 
-func Apply(ctx context.Context, databaseURL string, m Migration) error {
+// applyLock is the advisory lock every applier takes before it runs a
+// migration, keyed on the migrations table's name so that any process
+// applying against the same database contends for the same lock. Two
+// containers of one service start their migrations at the same moment on
+// every deploy; without the lock both run the same migration, one fails on
+// the object the other already created, and that container never comes up.
+const applyLock = "hashtext('" + migrationsTable + "')"
+
+// Apply runs m against the database and records it, unless another
+// applier recorded it first. It reports whether this call applied it.
+//
+// Appliers take turns: the lock is taken before the migration runs and the
+// migration's record is re-read under it, so a second applier waits for the
+// first to commit and then finds the migration applied. The lock is
+// transaction-scoped for a transactional migration and session-scoped for
+// one that runs statement by statement; either way it is released with the
+// connection if the applier dies.
+func Apply(ctx context.Context, databaseURL string, m Migration) (bool, error) {
 	conn, err := pgx.Connect(ctx, databaseURL)
 	if err != nil {
-		return fmt.Errorf("failed to connect to database: %w", err)
+		return false, fmt.Errorf("failed to connect to database: %w", err)
 	}
 	defer func() { _ = conn.Close(ctx) }()
 
 	if err := EnsureMigrationsTable(ctx, conn); err != nil {
-		return fmt.Errorf("failed to ensure migrations table: %w", err)
+		return false, fmt.Errorf("failed to ensure migrations table: %w", err)
 	}
 
 	checksum := m.Checksum
@@ -218,32 +235,64 @@ func Apply(ctx context.Context, databaseURL string, m Migration) error {
 	record := fmt.Sprintf(`INSERT INTO %s (name, checksum) VALUES ($1, $2)`, migrationsTable)
 
 	if m.NoTransaction() {
+		if _, err := conn.Exec(ctx, "SELECT pg_advisory_lock("+applyLock+")"); err != nil {
+			return false, fmt.Errorf("failed to take the apply lock: %w", err)
+		}
+		defer func() { _, _ = conn.Exec(ctx, "SELECT pg_advisory_unlock("+applyLock+")") }()
+		applied, err := isApplied(ctx, conn, m.Name)
+		if err != nil || applied {
+			return false, err
+		}
 		for _, statement := range Statements(m.Content) {
 			if _, err := conn.Exec(ctx, statement); err != nil {
-				return fmt.Errorf("failed to execute migration: %w", err)
+				return false, fmt.Errorf("failed to execute migration: %w", err)
 			}
 		}
 		if _, err := conn.Exec(ctx, record, m.Name, checksum); err != nil {
-			return fmt.Errorf("failed to record migration: %w", err)
+			return false, fmt.Errorf("failed to record migration: %w", err)
 		}
-		return nil
+		return true, nil
 	}
 
 	tx, err := conn.Begin(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to begin transaction: %w", err)
+		return false, fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
+	if _, err := tx.Exec(ctx, "SELECT pg_advisory_xact_lock("+applyLock+")"); err != nil {
+		return false, fmt.Errorf("failed to take the apply lock: %w", err)
+	}
+	applied, err := isApplied(ctx, tx, m.Name)
+	if err != nil || applied {
+		return false, err
+	}
+
 	if _, err := tx.Exec(ctx, m.Content); err != nil {
-		return fmt.Errorf("failed to execute migration: %w", err)
+		return false, fmt.Errorf("failed to execute migration: %w", err)
 	}
 
 	if _, err := tx.Exec(ctx, record, m.Name, checksum); err != nil {
-		return fmt.Errorf("failed to record migration: %w", err)
+		return false, fmt.Errorf("failed to record migration: %w", err)
 	}
 
-	return tx.Commit(ctx)
+	if err := tx.Commit(ctx); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+type querier interface {
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+}
+
+func isApplied(ctx context.Context, q querier, name string) (bool, error) {
+	var applied bool
+	err := q.QueryRow(ctx, fmt.Sprintf(`SELECT EXISTS (SELECT 1 FROM %s WHERE name = $1)`, migrationsTable), name).Scan(&applied)
+	if err != nil {
+		return false, fmt.Errorf("failed to read the migration record: %w", err)
+	}
+	return applied, nil
 }
 
 func GetLastApplied(ctx context.Context, databaseURL string) (*Migration, error) {

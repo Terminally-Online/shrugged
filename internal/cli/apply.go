@@ -72,9 +72,14 @@ var applyCmd = &cobra.Command{
 		fmt.Println()
 		for _, m := range pending {
 			fmt.Printf("Applying %s... ", m.Name)
-			if err := migrate.Apply(ctx, dbURL, m); err != nil {
+			applied, err := migrate.Apply(ctx, dbURL, m)
+			if err != nil {
 				fmt.Println("FAILED")
 				return fmt.Errorf("failed to apply migration %s: %w", m.Name, err)
+			}
+			if !applied {
+				fmt.Println("already applied by another process")
+				continue
 			}
 			fmt.Println("OK")
 		}
