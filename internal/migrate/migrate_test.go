@@ -2,6 +2,7 @@ package migrate
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -720,5 +721,67 @@ func TestApply_ConcurrentAppliersTakeTurns_Integration(t *testing.T) {
 	}
 	if len(applied) != 2 {
 		t.Fatalf("recorded %d migrations, want 2", len(applied))
+	}
+}
+
+// A concurrent index build waits for every transaction holding a snapshot older
+// than its own to end. Appliers that wait for the apply lock inside Postgres
+// are such transactions, and they wait on the very applier running the build,
+// so the two deadlock and Postgres cancels the build, leaving its index
+// invalid. Every applier here must succeed, whether it waits to apply the same
+// build or a later transactional migration, and the index must be usable.
+func TestApply_ConcurrentIndexBuildOutlastsWaitingAppliers_Integration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
+
+	cfg := docker.DefaultPostgresConfig()
+	container, err := docker.StartPostgres(ctx, cfg)
+	if err != nil {
+		t.Fatalf("StartPostgres() error = %v", err)
+	}
+	defer func() { _ = docker.StopContainer(context.Background(), container.ID) }()
+	dbURL := container.ConnectionString()
+
+	if _, err := Apply(ctx, dbURL, Migration{Name: "001_rows.sql", Content: "CREATE TABLE rows (id SERIAL PRIMARY KEY, v INT); INSERT INTO rows (v) SELECT g FROM generate_series(1, 2000000) g;"}); err != nil {
+		t.Fatalf("Apply(rows) error = %v", err)
+	}
+
+	build := Migration{Name: "002_rows_v.sql", Content: NoTransactionDirective + "\nCREATE INDEX CONCURRENTLY rows_v ON rows (v);"}
+	later := Migration{Name: "003_later.sql", Content: "CREATE TABLE later (id SERIAL PRIMARY KEY);"}
+	migrations := []Migration{build, build, build, later}
+	errs := make(chan error, len(migrations))
+	for i, m := range migrations {
+		go func() {
+			if i > 0 {
+				time.Sleep(100 * time.Millisecond)
+			}
+			_, err := Apply(ctx, dbURL, m)
+			if err != nil {
+				err = fmt.Errorf("%s: %w", m.Name, err)
+			}
+			errs <- err
+		}()
+	}
+	for range migrations {
+		if err := <-errs; err != nil {
+			t.Fatalf("an applier failed: %v", err)
+		}
+	}
+
+	conn, err := pgx.Connect(ctx, dbURL)
+	if err != nil {
+		t.Fatalf("connect: %v", err)
+	}
+	defer func() { _ = conn.Close(ctx) }()
+	var valid bool
+	if err := conn.QueryRow(ctx, "SELECT indisvalid FROM pg_index WHERE indexrelid = 'rows_v'::regclass").Scan(&valid); err != nil {
+		t.Fatalf("read index: %v", err)
+	}
+	if !valid {
+		t.Fatal("the concurrent build left rows_v invalid")
 	}
 }

@@ -214,9 +214,7 @@ const applyLock = "hashtext('" + migrationsTable + "')"
 // Appliers take turns: the lock is taken before the migration runs and the
 // migration's record is re-read under it, so a second applier waits for the
 // first to commit and then finds the migration applied. The lock is
-// transaction-scoped for a transactional migration and session-scoped for
-// one that runs statement by statement; either way it is released with the
-// connection if the applier dies.
+// session-scoped and released with the connection if the applier dies.
 func Apply(ctx context.Context, databaseURL string, m Migration) (bool, error) {
 	conn, err := pgx.Connect(ctx, databaseURL)
 	if err != nil {
@@ -234,15 +232,16 @@ func Apply(ctx context.Context, databaseURL string, m Migration) (bool, error) {
 	}
 	record := fmt.Sprintf(`INSERT INTO %s (name, checksum) VALUES ($1, $2)`, migrationsTable)
 
+	if err := takeApplyLock(ctx, conn); err != nil {
+		return false, err
+	}
+	defer func() { _, _ = conn.Exec(ctx, "SELECT pg_advisory_unlock("+applyLock+")") }()
+	applied, err := isApplied(ctx, conn, m.Name)
+	if err != nil || applied {
+		return false, err
+	}
+
 	if m.NoTransaction() {
-		if _, err := conn.Exec(ctx, "SELECT pg_advisory_lock("+applyLock+")"); err != nil {
-			return false, fmt.Errorf("failed to take the apply lock: %w", err)
-		}
-		defer func() { _, _ = conn.Exec(ctx, "SELECT pg_advisory_unlock("+applyLock+")") }()
-		applied, err := isApplied(ctx, conn, m.Name)
-		if err != nil || applied {
-			return false, err
-		}
 		for _, statement := range Statements(m.Content) {
 			if _, err := conn.Exec(ctx, statement); err != nil {
 				return false, fmt.Errorf("failed to execute migration: %w", err)
@@ -260,14 +259,6 @@ func Apply(ctx context.Context, databaseURL string, m Migration) (bool, error) {
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
-	if _, err := tx.Exec(ctx, "SELECT pg_advisory_xact_lock("+applyLock+")"); err != nil {
-		return false, fmt.Errorf("failed to take the apply lock: %w", err)
-	}
-	applied, err := isApplied(ctx, tx, m.Name)
-	if err != nil || applied {
-		return false, err
-	}
-
 	if _, err := tx.Exec(ctx, m.Content); err != nil {
 		return false, fmt.Errorf("failed to execute migration: %w", err)
 	}
@@ -280,6 +271,34 @@ func Apply(ctx context.Context, databaseURL string, m Migration) (bool, error) {
 		return false, err
 	}
 	return true, nil
+}
+
+// applyLockWait is how long an applier waits between attempts to take the
+// apply lock.
+const applyLockWait = 100 * time.Millisecond
+
+// takeApplyLock takes the apply lock on conn, waiting between attempts outside
+// the database. A concurrent index build waits for every transaction holding
+// a snapshot older than its own, and an applier blocked inside
+// pg_advisory_lock is one, waiting on the very applier running the build:
+// the two deadlock and Postgres cancels one, leaving the index invalid. An
+// attempt that cannot take the lock returns at once and holds nothing while
+// the applier waits.
+func takeApplyLock(ctx context.Context, conn *pgx.Conn) error {
+	for {
+		var taken bool
+		if err := conn.QueryRow(ctx, "SELECT pg_try_advisory_lock("+applyLock+")").Scan(&taken); err != nil {
+			return fmt.Errorf("failed to take the apply lock: %w", err)
+		}
+		if taken {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("failed to take the apply lock: %w", ctx.Err())
+		case <-time.After(applyLockWait):
+		}
+	}
 }
 
 type querier interface {
