@@ -30,7 +30,7 @@ git rev-parse "$v" >/dev/null 2>&1 && {
 	exit 1
 }
 
-dev/verify
+dev/release.d/green "$(git rev-parse HEAD)"
 
 rm -rf dist && mkdir -p dist
 for target in $TARGETS; do

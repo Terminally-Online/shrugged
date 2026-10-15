@@ -20,8 +20,10 @@ cleanup() {
 }
 trap cleanup EXIT
 
-signoff=false
-[[ "${1:-}" == "--signoff" ]] && signoff=true
+(($# == 0)) || {
+	echo "unknown flag: $1"
+	exit 2
+}
 
 ensure_golangci_lint() {
 	"$TOOLS/golangci-lint" version 2>/dev/null | grep -q "${GOLANGCI_LINT_VERSION#v}" && return 0
@@ -101,10 +103,6 @@ if ((${#failed[@]})); then
 		cat "$OUT/$j.log"
 	done
 	exit 1
-fi
-
-if $signoff; then
-	crew signoff "${JOBS[@]}" || exit 1
 fi
 
 echo verified
