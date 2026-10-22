@@ -60,3 +60,12 @@ jobs:
       - uses: actions/checkout@v4
       - name: go build
         run: go build ./...
+
+  security:
+    runs-on: golang
+    container:
+      image: git.ca.plug.to/terminally-online/ci-security:1
+    steps:
+      - uses: actions/checkout@v4
+      - name: vulngate
+        run: vulngate
