@@ -1,4 +1,4 @@
-.PHONY: build build-api install test docs clean run-api examples clean-examples fmt
+.PHONY: build install test docs clean examples clean-examples fmt
 
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 INSTALL_PATH ?= /usr/local/bin/shrugged
@@ -9,12 +9,6 @@ build:
 install: build
 	cp bin/shrugged $(INSTALL_PATH)
 	@echo "installed: $(INSTALL_PATH) ($(VERSION))"
-
-build-api:
-	go build -ldflags "-X main.version=$(VERSION)" -o bin/shrugged-api ./cmd/api
-
-run-api: build-api
-	./bin/shrugged-api
 
 test:
 	go test ./...
